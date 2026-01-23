@@ -1,0 +1,32 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__
+*.py[cod]
+*$py.class
+*.egg-info
+.eggs
+dist
+build
+.venv
+venv
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Testing
+.pytest_cache
+.coverage
+htmlcov
+
+# Docs (keep CLAUDE.md for reference)
+docs/
+
+# Local config
+*.local
+.env

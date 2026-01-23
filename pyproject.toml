@@ -1,0 +1,31 @@
+[project]
+name = "fcld"
+version = "0.1.0"
+description = "FleetCommand Lighting Designer - DMX lighting control engine using OLA"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+[project.scripts]
+fcld = "fcld.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "mypy>=1.0",
+    "ruff>=0.1",
+]
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+
+[tool.ruff]
+line-length = 100
