@@ -28,10 +28,32 @@ def main() -> None:
         help="Frames per second (default: 40)",
     )
 
+    serve_parser = subparsers.add_parser("serve", help="Run HTTP server")
+    serve_parser.add_argument(
+        "--host",
+        type=str,
+        default="0.0.0.0",
+        help="Host to bind to (default: 0.0.0.0)",
+    )
+    serve_parser.add_argument(
+        "--port",
+        type=int,
+        default=8080,
+        help="Port to listen on (default: 8080)",
+    )
+    serve_parser.add_argument(
+        "--shows-dir",
+        type=str,
+        default="/app/shows",
+        help="Directory containing show files (default: /app/shows)",
+    )
+
     args = parser.parse_args()
 
     if args.command == "demo-basic":
         run_demo_basic(args.start_at, args.fps)
+    elif args.command == "serve":
+        run_serve(args.host, args.port, args.shows_dir)
     else:
         parser.print_help()
         sys.exit(1)
@@ -63,6 +85,13 @@ def run_demo_basic(start_at: float, fps: float) -> None:
     print()
 
     run(start_at=start_at, fps=fps)
+
+
+def run_serve(host: str, port: int, shows_dir: str) -> None:
+    """Run the HTTP server."""
+    from fcld.server import run_server
+
+    run_server(host=host, port=port, shows_dir=shows_dir)
 
 
 if __name__ == "__main__":

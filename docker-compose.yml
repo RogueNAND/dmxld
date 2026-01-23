@@ -8,4 +8,5 @@ services:
     environment:
       - OLA_HOST=127.0.0.1
       - OLA_PORT=9010
-    command: demo
+      - PYTHONUNBUFFERED=1
+    command: serve --port 8654

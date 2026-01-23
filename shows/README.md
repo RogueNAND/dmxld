@@ -82,6 +82,29 @@ if __name__ == "__main__":
 
 **Prerequisites:** OLA daemon must be running on host (`olad -l 3`).
 
+### HTTP Server (Recommended)
+
+Start the server and trigger shows via HTTP requests:
+
+```bash
+# Start server with Docker
+docker compose up
+
+# Or locally
+PYTHONPATH=src:. python3 -m fcld.cli serve --shows-dir ./shows --port 8080
+```
+
+Then trigger shows via HTTP:
+```bash
+curl http://localhost:8080/shows              # List available shows
+curl http://localhost:8080/play/basic_show    # Start a show
+curl http://localhost:8080/play/basic_show?start_at=5.0  # Start at specific time
+curl http://localhost:8080/status             # Check current status
+curl http://localhost:8080/stop               # Stop current show
+```
+
+### Direct Execution
+
 ```bash
 # Run the built-in demo
 PYTHONPATH=src:. python3 -m fcld.cli demo-basic

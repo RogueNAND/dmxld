@@ -79,10 +79,8 @@ class DMXEngine:
         ola_port = os.environ.get("OLA_PORT", "9010")
 
         if ola_host:
-            print(f"Connecting to OLA at {ola_host}:{ola_port}")
             self._play_remote(clip, start_at, ola_host, int(ola_port))
         else:
-            print("Connecting to local OLA")
             self._play_local(clip, start_at)
 
     def _play_local(self, clip: Clip, start_at: float) -> None:
@@ -122,35 +120,48 @@ class DMXEngine:
             self._running = False
 
     def _play_remote(self, clip: Clip, start_at: float, host: str, port: int) -> None:
-        """Play using remote OLA connection (polling loop)."""
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((host, port))
-        client = OlaClient(sock)
+        """Play using remote OLA connection (event-driven with custom socket)."""
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((host, port))
+        except Exception as e:
+            print(f"ERROR: Failed to connect to OLA at {host}:{port}: {e}")
+            return
 
+        # Use ClientWrapper with the remote socket for proper RPC handling
         self._running = True
+        wrapper = ClientWrapper(sock)
+        client = wrapper.Client()
+
         frame_duration = 1.0 / self.fps
         show_start = time.monotonic() - start_at
 
+        def tick() -> None:
+            if not self._running:
+                wrapper.Stop()
+                return
+
+            show_time = time.monotonic() - show_start
+
+            if clip.duration is not None and show_time > clip.duration:
+                self._running = False
+                wrapper.Stop()
+                return
+
+            deltas = clip.render(show_time, self.rig)
+            self._apply_deltas(deltas)
+
+            universe_data = self.rig.encode_to_dmx(self._fixture_states)
+            self._send_dmx(client, universe_data)
+
+            wrapper.AddEvent(int(frame_duration * 1000), tick)
+
+        wrapper.AddEvent(0, tick)
+
         try:
-            while self._running:
-                frame_start = time.monotonic()
-                show_time = frame_start - show_start
-
-                if clip.duration is not None and show_time > clip.duration:
-                    break
-
-                deltas = clip.render(show_time, self.rig)
-                self._apply_deltas(deltas)
-
-                universe_data = self.rig.encode_to_dmx(self._fixture_states)
-                self._send_dmx(client, universe_data)
-
-                elapsed = time.monotonic() - frame_start
-                sleep_time = frame_duration - elapsed
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
+            wrapper.Run()
         except KeyboardInterrupt:
-            pass
+            self._running = False
         finally:
             sock.close()
 

@@ -11,6 +11,7 @@ from fcld.model import (
 from fcld.blend import BlendOp, FixtureDelta, apply_delta, merge_deltas
 from fcld.clips import Clip, SceneClip, DimmerPulseClip, TimelineClip
 from fcld.engine import DMXEngine
+from fcld.server import run_server, ShowRunner, discover_shows
 
 __all__ = [
     "Vec3",
@@ -28,6 +29,9 @@ __all__ = [
     "DimmerPulseClip",
     "TimelineClip",
     "DMXEngine",
+    "run_server",
+    "ShowRunner",
+    "discover_shows",
 ]
 
 __version__ = "0.1.0"
