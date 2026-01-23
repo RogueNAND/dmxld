@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Protocol, runtime_checkable
 
@@ -66,11 +67,43 @@ class GenericRGBDimmer:
         }
 
 
+_fixture_registry: ContextVar[list[Fixture] | None] = ContextVar(
+    "_fixture_registry", default=None
+)
+
+
+def _register_fixture(fixture: Fixture) -> None:
+    """Register a fixture with the current context if one exists."""
+    registry = _fixture_registry.get()
+    if registry is not None:
+        registry.append(fixture)
+
+
+class FixtureContext:
+    """Context manager that collects fixtures created within its scope."""
+
+    def __init__(self) -> None:
+        self._fixtures: list[Fixture] = []
+        self._token: object = None
+
+    def __enter__(self) -> FixtureContext:
+        self._fixtures = []
+        self._token = _fixture_registry.set(self._fixtures)
+        return self
+
+    def __exit__(self, *args: object) -> None:
+        _fixture_registry.reset(self._token)
+
+    @property
+    def fixtures(self) -> list[Fixture]:
+        """Return collected fixtures."""
+        return list(self._fixtures)
+
+
 @dataclass
 class Fixture:
     """A single fixture in the rig."""
 
-    name: str
     fixture_type: FixtureType
     universe: int
     address: int
@@ -78,17 +111,16 @@ class Fixture:
     tags: set[str] = field(default_factory=set)
     meta: dict[str, object] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        _register_fixture(self)
+
     def __hash__(self) -> int:
-        return hash((self.name, self.universe, self.address))
+        return id(self)
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Fixture):
             return NotImplemented
-        return (
-            self.name == other.name
-            and self.universe == other.universe
-            and self.address == other.address
-        )
+        return self is other
 
 
 class Rig:
@@ -96,30 +128,23 @@ class Rig:
 
     def __init__(self, fixtures: list[Fixture] | None = None):
         self._fixtures: list[Fixture] = fixtures or []
-        self._by_name: dict[str, Fixture] = {}
         self._by_tag: dict[str, list[Fixture]] = {}
         self._rebuild_indices()
 
     def _rebuild_indices(self) -> None:
-        self._by_name.clear()
         self._by_tag.clear()
         for f in self._fixtures:
-            self._by_name[f.name] = f
             for tag in f.tags:
                 self._by_tag.setdefault(tag, []).append(f)
 
     def add(self, fixture: Fixture) -> None:
         self._fixtures.append(fixture)
-        self._by_name[fixture.name] = fixture
         for tag in fixture.tags:
             self._by_tag.setdefault(tag, []).append(fixture)
 
     @property
     def all(self) -> list[Fixture]:
         return list(self._fixtures)
-
-    def by_name(self, name: str) -> Fixture | None:
-        return self._by_name.get(name)
 
     def by_tag(self, tag: str) -> list[Fixture]:
         return list(self._by_tag.get(tag, []))

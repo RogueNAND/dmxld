@@ -16,43 +16,32 @@ from fcld.server import ShowRunner, discover_shows, run_server
 class TestDiscoverShows:
     """Tests for show discovery."""
 
-    def test_discovers_valid_shows(self, tmp_path: Path) -> None:
-        """Valid show files are discovered."""
+    def test_discovers_run_pattern(self, tmp_path: Path) -> None:
+        """Shows with run() function are discovered."""
         show_file = tmp_path / "my_show.py"
-        show_file.write_text(
-            "def create_rig(): pass\ndef create_show(): pass"
-        )
+        show_file.write_text("def run(): pass")
         shows = discover_shows(str(tmp_path))
         assert "my_show" in shows
         assert shows["my_show"] == show_file
 
-    def test_ignores_files_without_create_rig(self, tmp_path: Path) -> None:
-        """Files missing create_rig are ignored."""
+    def test_ignores_files_without_run(self, tmp_path: Path) -> None:
+        """Files missing run() are ignored."""
         show_file = tmp_path / "incomplete.py"
-        show_file.write_text("def create_show(): pass")
-        shows = discover_shows(str(tmp_path))
-        assert "incomplete" not in shows
-
-    def test_ignores_files_without_create_show(self, tmp_path: Path) -> None:
-        """Files missing create_show are ignored."""
-        show_file = tmp_path / "incomplete.py"
-        show_file.write_text("def create_rig(): pass")
+        show_file.write_text("def something_else(): pass")
         shows = discover_shows(str(tmp_path))
         assert "incomplete" not in shows
 
     def test_ignores_underscore_files(self, tmp_path: Path) -> None:
         """Files starting with underscore are ignored."""
         show_file = tmp_path / "_private.py"
-        show_file.write_text(
-            "def create_rig(): pass\ndef create_show(): pass"
-        )
+        show_file.write_text("def run(): pass")
         shows = discover_shows(str(tmp_path))
         assert "_private" not in shows
 
     def test_ignores_syntax_errors(self, tmp_path: Path) -> None:
         """Files with syntax errors are ignored."""
         show_file = tmp_path / "broken.py"
-        show_file.write_text("def create_rig( invalid syntax")
+        show_file.write_text("def run( invalid syntax")
         shows = discover_shows(str(tmp_path))
         assert "broken" not in shows
 
@@ -63,10 +52,9 @@ class TestDiscoverShows:
 
     def test_discovers_multiple_shows(self, tmp_path: Path) -> None:
         """Multiple valid shows are discovered."""
-        for name in ["show_a", "show_b", "show_c"]:
-            (tmp_path / f"{name}.py").write_text(
-                "def create_rig(): pass\ndef create_show(): pass"
-            )
+        (tmp_path / "show_a.py").write_text("def run(): pass")
+        (tmp_path / "show_b.py").write_text("def run(): pass")
+        (tmp_path / "show_c.py").write_text("def run(): pass")
         shows = discover_shows(str(tmp_path))
         assert len(shows) == 3
         assert all(name in shows for name in ["show_a", "show_b", "show_c"])
@@ -83,9 +71,7 @@ class TestShowRunner:
 
     def test_get_shows_returns_discovered(self, tmp_path: Path) -> None:
         """get_shows returns discovered shows."""
-        (tmp_path / "test_show.py").write_text(
-            "def create_rig(): pass\ndef create_show(): pass"
-        )
+        (tmp_path / "test_show.py").write_text("def run(): pass")
         runner = ShowRunner(str(tmp_path))
         shows = runner.get_shows()
         assert "test_show" in shows
@@ -105,28 +91,29 @@ class TestShowRunner:
         assert "No show running" in message
 
 
-class TestShowRunnerWithMockEngine:
-    """Tests for ShowRunner with mocked DMXEngine."""
+class TestShowRunnerPlay:
+    """Tests for ShowRunner.play()."""
 
     @pytest.fixture
     def mock_show_dir(self, tmp_path: Path) -> Path:
         """Create a directory with a mock show."""
         show_content = '''
-from fcld.model import Rig, Fixture, FixtureType, Vec3, FixtureState
+from fcld.model import Fixture, FixtureType, Vec3, FixtureState
 from fcld.clips import TimelineClip
 
 class MockType(FixtureType):
     channel_count = 4
+    @property
+    def name(self) -> str:
+        return "Mock"
     def encode(self, state: FixtureState) -> dict[int, int]:
-        return {1: int(state.dimmer * 255)}
+        return {0: int(state.dimmer * 255)}
 
-def create_rig():
-    return Rig([Fixture("f1", MockType(), 1, 1, Vec3(0,0,0), set())])
-
-def create_show():
+def run():
+    Fixture(MockType(), 1, 1, Vec3(0,0,0), set())
     return TimelineClip()
 '''
-        (tmp_path / "mock_show.py").write_text(show_content)
+        (tmp_path / "test_show.py").write_text(show_content)
         return tmp_path
 
     def test_play_starts_show(self, mock_show_dir: Path) -> None:
@@ -137,24 +124,11 @@ def create_show():
             mock_engine = MagicMock()
             MockEngine.return_value = mock_engine
 
-            success, message = runner.play("mock_show")
+            success, message = runner.play("test_show")
 
             assert success is True
             assert "Started" in message
-            assert runner._current_show == "mock_show"
-
-    def test_play_sets_current_show(self, mock_show_dir: Path) -> None:
-        """Playing a show sets the current show name."""
-        runner = ShowRunner(str(mock_show_dir))
-
-        with patch("fcld.server.DMXEngine") as MockEngine:
-            mock_engine = MagicMock()
-            MockEngine.return_value = mock_engine
-
-            runner.play("mock_show")
-
-            # Current show should be set
-            assert runner._current_show == "mock_show"
+            assert runner._current_show == "test_show"
 
 
 class TestServerIntegration:
@@ -164,18 +138,19 @@ class TestServerIntegration:
     def server_with_show(self, tmp_path: Path) -> Generator[tuple[str, ShowRunner], None, None]:
         """Start a test server with a mock show."""
         show_content = '''
-from fcld.model import Rig, Fixture, FixtureType, Vec3, FixtureState
+from fcld.model import Fixture, FixtureType, Vec3, FixtureState
 from fcld.clips import TimelineClip
 
 class MockType(FixtureType):
     channel_count = 4
+    @property
+    def name(self) -> str:
+        return "Mock"
     def encode(self, state: FixtureState) -> dict[int, int]:
-        return {1: int(state.dimmer * 255)}
+        return {0: int(state.dimmer * 255)}
 
-def create_rig():
-    return Rig([Fixture("f1", MockType(), 1, 1, Vec3(0,0,0), set())])
-
-def create_show():
+def run():
+    Fixture(MockType(), 1, 1, Vec3(0,0,0), set())
     return TimelineClip()
 '''
         (tmp_path / "test_show.py").write_text(show_content)

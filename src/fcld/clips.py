@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, Protocol, runtime_checkable
+from typing import Callable, Iterable, Protocol, Union, runtime_checkable
 
-from fcld.blend import BlendOp, FixtureDelta
+from fcld.blend import BlendOp, FixtureDelta, merge_deltas
 from fcld.model import Fixture, FixtureState, Rig
 
 
@@ -27,6 +27,26 @@ class Clip(Protocol):
 Selector = Callable[[Rig], Iterable[Fixture]]
 ParamsFn = Callable[[Fixture], FixtureState]
 
+# Flexible input types that accept either callables or objects
+SelectorInput = Union[Callable[[Rig], Iterable[Fixture]], Iterable[Fixture]]
+ParamsFnInput = Union[Callable[[Fixture], FixtureState], FixtureState]
+
+
+def _normalize_selector(selector: SelectorInput) -> Selector:
+    """Normalize selector input to a callable."""
+    if callable(selector):
+        return selector
+    fixtures = list(selector)
+    return lambda rig: fixtures
+
+
+def _normalize_params_fn(params_fn: ParamsFnInput) -> ParamsFn:
+    """Normalize params_fn input to a callable."""
+    if callable(params_fn):
+        return params_fn
+    state = params_fn
+    return lambda fixture: state
+
 
 def _out_of_bounds(t: float, duration: float | None) -> bool:
     """Check if time is outside clip bounds."""
@@ -37,11 +57,18 @@ def _out_of_bounds(t: float, duration: float | None) -> bool:
 class SceneClip:
     """Static scene with optional fade in/out."""
 
-    selector: Selector
-    params_fn: ParamsFn
+    selector: SelectorInput
+    params_fn: ParamsFnInput
     fade_in: float = 0.0
     fade_out: float = 0.0
     clip_duration: float | None = None
+
+    _selector: Selector = field(init=False, repr=False)
+    _params_fn: ParamsFn = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._selector = _normalize_selector(self.selector)
+        self._params_fn = _normalize_params_fn(self.params_fn)
 
     @property
     def duration(self) -> float | None:
@@ -60,8 +87,8 @@ class SceneClip:
                 fade_mult = max(0.0, time_remaining / self.fade_out)
 
         result: dict[Fixture, FixtureDelta] = {}
-        for fixture in self.selector(rig):
-            state = self.params_fn(fixture)
+        for fixture in self._selector(rig):
+            state = self._params_fn(fixture)
             result[fixture] = FixtureDelta(
                 dimmer=(BlendOp.SET, state.dimmer * fade_mult),
                 rgb=(BlendOp.SET, state.rgb),
@@ -73,11 +100,16 @@ class SceneClip:
 class DimmerPulseClip:
     """Sine wave pulse on dimmer channel."""
 
-    selector: Selector
+    selector: SelectorInput
     rate_hz: float = 1.0
     depth: float = 0.5
     base: float = 0.5
     clip_duration: float | None = None
+
+    _selector: Selector = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self._selector = _normalize_selector(self.selector)
 
     @property
     def duration(self) -> float | None:
@@ -88,11 +120,10 @@ class DimmerPulseClip:
             return {}
 
         phase = t * self.rate_hz * 2 * math.pi
-        pulse_value = self.base + self.depth * math.sin(phase)
-        pulse_value = max(0.0, min(1.0, pulse_value))
+        pulse_value = max(0.0, min(1.0, self.base + self.depth * math.sin(phase)))
 
         result: dict[Fixture, FixtureDelta] = {}
-        for fixture in self.selector(rig):
+        for fixture in self._selector(rig):
             result[fixture] = FixtureDelta(
                 dimmer=(BlendOp.MUL, pulse_value),
             )
@@ -122,8 +153,6 @@ class TimelineClip:
         return self
 
     def render(self, t: float, rig: Rig) -> dict[Fixture, FixtureDelta]:
-        from fcld.blend import merge_deltas
-
         fixture_deltas: dict[Fixture, list[FixtureDelta]] = {}
 
         for start_time, clip in self.events:

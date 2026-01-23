@@ -14,10 +14,11 @@ from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from fcld.engine import DMXEngine
+from fcld.model import FixtureContext, Rig
 
 
 def discover_shows(shows_dir: str) -> dict[str, Path]:
-    """Scan directory for valid show modules with create_rig() and create_show()."""
+    """Scan directory for valid show modules with run() function."""
     shows: dict[str, Path] = {}
     shows_path = Path(shows_dir)
 
@@ -36,7 +37,7 @@ def discover_shows(shows_dir: str) -> dict[str, Path]:
             module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(module)
 
-            if hasattr(module, "create_rig") and hasattr(module, "create_show"):
+            if hasattr(module, "run"):
                 shows[py_file.stem] = py_file
         except Exception:
             continue
@@ -82,8 +83,9 @@ class ShowRunner:
         show_path = shows[show_name]
         try:
             module = load_show_module(show_path)
-            rig = module.create_rig()
-            clip = module.create_show()
+            with FixtureContext() as ctx:
+                clip = module.run()
+            rig = Rig(ctx.fixtures)
         except Exception as e:
             return False, f"Error loading show: {e}"
 
@@ -215,13 +217,9 @@ def run_server(
 ) -> None:
     """Run the HTTP server."""
     runner = ShowRunner(shows_dir)
+    FCLDHandler.runner = runner
 
-    class Handler(FCLDHandler):
-        pass
-
-    Handler.runner = runner
-
-    server = HTTPServer((host, port), Handler)
+    server = HTTPServer((host, port), FCLDHandler)
     print(f"FCLD Server starting on http://{host}:{port}")
     print(f"Shows directory: {shows_dir}")
 

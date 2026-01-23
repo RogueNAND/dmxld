@@ -2,7 +2,15 @@
 
 import pytest
 
-from fcld.model import Fixture, FixtureState, FixtureType, GenericRGBDimmer, Rig, Vec3
+from fcld.model import (
+    Fixture,
+    FixtureContext,
+    FixtureState,
+    FixtureType,
+    GenericRGBDimmer,
+    Rig,
+    Vec3,
+)
 
 
 class TestVec3:
@@ -100,9 +108,9 @@ class TestRig:
         """Create a sample rig with multiple fixtures."""
         ft = MockFixtureType()
         fixtures = [
-            Fixture("left", ft, 1, 1, Vec3(-1, 0, 0), {"side", "front"}),
-            Fixture("right", ft, 1, 10, Vec3(1, 0, 0), {"side", "front"}),
-            Fixture("back", ft, 1, 20, Vec3(0, 0, -1), {"back"}),
+            Fixture(ft, 1, 1, Vec3(-1, 0, 0), {"side", "front"}),
+            Fixture(ft, 1, 10, Vec3(1, 0, 0), {"side", "front"}),
+            Fixture(ft, 1, 20, Vec3(0, 0, -1), {"back"}),
         ]
         return Rig(fixtures)
 
@@ -110,23 +118,10 @@ class TestRig:
         """all property returns all fixtures."""
         assert len(sample_rig.all) == 3
 
-    def test_by_name_found(self, sample_rig: Rig) -> None:
-        """by_name returns fixture when found."""
-        fixture = sample_rig.by_name("left")
-        assert fixture is not None
-        assert fixture.name == "left"
-
-    def test_by_name_not_found(self, sample_rig: Rig) -> None:
-        """by_name returns None when not found."""
-        fixture = sample_rig.by_name("nonexistent")
-        assert fixture is None
-
     def test_by_tag_returns_matching(self, sample_rig: Rig) -> None:
         """by_tag returns fixtures with tag."""
         fixtures = sample_rig.by_tag("side")
         assert len(fixtures) == 2
-        names = {f.name for f in fixtures}
-        assert names == {"left", "right"}
 
     def test_by_tag_no_matches(self, sample_rig: Rig) -> None:
         """by_tag returns empty list when no matches."""
@@ -144,18 +139,18 @@ class TestRig:
         assert 1 in dmx  # Universe 1
         # MockFixtureType only encodes dimmer at offset 0
         # So fixture at address 1 -> channel 1, address 10 -> channel 10, etc.
-        assert dmx[1][1] == 255   # left at address 1 + offset 0
-        assert dmx[1][10] == 255  # right at address 10 + offset 0
-        assert dmx[1][20] == 255  # back at address 20 + offset 0
+        assert dmx[1][1] == 255   # at address 1 + offset 0
+        assert dmx[1][10] == 255  # at address 10 + offset 0
+        assert dmx[1][20] == 255  # at address 20 + offset 0
 
     def test_encode_to_dmx_partial_states(self, sample_rig: Rig) -> None:
         """encode_to_dmx handles partial states."""
-        left = sample_rig.by_name("left")
-        states = {left: FixtureState(dimmer=0.5)}
+        first = sample_rig.all[0]
+        states = {first: FixtureState(dimmer=0.5)}
 
         dmx = sample_rig.encode_to_dmx(states)
 
-        assert dmx[1][1] == 127  # left at address 1 + offset 0
+        assert dmx[1][1] == 127  # first at address 1 + offset 0
         # Others should not be present
         assert 10 not in dmx[1]
         assert 20 not in dmx[1]
@@ -168,15 +163,87 @@ class TestFixture:
         """Fixture can be created with all parameters."""
         ft = MockFixtureType()
         fixture = Fixture(
-            name="test",
             fixture_type=ft,
             universe=1,
             address=1,
             pos=Vec3(0, 0, 0),
             tags={"tag1", "tag2"},
         )
-        assert fixture.name == "test"
         assert fixture.universe == 1
         assert fixture.address == 1
         assert "tag1" in fixture.tags
         assert "tag2" in fixture.tags
+
+    def test_identity_based_equality(self) -> None:
+        """Two fixtures with same attributes are not equal (identity-based)."""
+        ft = MockFixtureType()
+        f1 = Fixture(ft, 1, 1)
+        f2 = Fixture(ft, 1, 1)
+        assert f1 != f2
+        assert f1 == f1
+
+    def test_identity_based_hash(self) -> None:
+        """Different fixtures have different hashes."""
+        ft = MockFixtureType()
+        f1 = Fixture(ft, 1, 1)
+        f2 = Fixture(ft, 1, 1)
+        assert hash(f1) != hash(f2)
+
+    def test_can_use_as_dict_key(self) -> None:
+        """Fixtures can be used as dictionary keys."""
+        ft = MockFixtureType()
+        f1 = Fixture(ft, 1, 1)
+        f2 = Fixture(ft, 1, 5)
+        d = {f1: "first", f2: "second"}
+        assert d[f1] == "first"
+        assert d[f2] == "second"
+
+
+class TestFixtureContext:
+    """Tests for FixtureContext auto-collection."""
+
+    def test_collects_fixtures(self) -> None:
+        """Fixtures created in context are collected."""
+        ft = MockFixtureType()
+        with FixtureContext() as ctx:
+            f1 = Fixture(ft, 1, 1)
+            f2 = Fixture(ft, 1, 5)
+
+        assert len(ctx.fixtures) == 2
+        assert f1 in ctx.fixtures
+        assert f2 in ctx.fixtures
+
+    def test_context_isolation(self) -> None:
+        """Fixtures outside context are not collected."""
+        ft = MockFixtureType()
+        f_outside = Fixture(ft, 1, 100)
+
+        with FixtureContext() as ctx:
+            f_inside = Fixture(ft, 1, 1)
+
+        assert len(ctx.fixtures) == 1
+        assert f_inside in ctx.fixtures
+        assert f_outside not in ctx.fixtures
+
+    def test_nested_contexts(self) -> None:
+        """Nested contexts collect independently."""
+        ft = MockFixtureType()
+        with FixtureContext() as outer:
+            f1 = Fixture(ft, 1, 1)
+            with FixtureContext() as inner:
+                f2 = Fixture(ft, 1, 5)
+            f3 = Fixture(ft, 1, 10)
+
+        assert len(inner.fixtures) == 1
+        assert f2 in inner.fixtures
+
+        assert len(outer.fixtures) == 2
+        assert f1 in outer.fixtures
+        assert f3 in outer.fixtures
+
+    def test_empty_context(self) -> None:
+        """Empty context returns empty list."""
+        with FixtureContext() as ctx:
+            pass
+
+        assert ctx.fixtures == []

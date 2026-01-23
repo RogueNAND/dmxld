@@ -24,7 +24,6 @@ class MockFixtureType(FixtureType):
 def simple_rig() -> Rig:
     """Create a simple rig with one fixture."""
     fixture = Fixture(
-        name="test",
         fixture_type=MockFixtureType(),
         universe=1,
         address=1,
@@ -106,6 +105,50 @@ class TestSceneClip:
         deltas = scene.render(10.0, simple_rig)
         assert len(deltas) == 0
 
+    def test_object_selector(self, simple_rig: Rig) -> None:
+        """Accepts a list of fixtures as selector."""
+        fixtures = simple_rig.all
+        scene = SceneClip(
+            selector=fixtures,  # List instead of callable
+            params_fn=lambda f: FixtureState(dimmer=1.0),
+            fade_in=0.0,
+            fade_out=0.0,
+            clip_duration=5.0,
+        )
+        deltas = scene.render(1.0, simple_rig)
+        assert len(deltas) == 1
+
+    def test_object_params_fn(self, simple_rig: Rig) -> None:
+        """Accepts a FixtureState as params_fn."""
+        scene = SceneClip(
+            selector=lambda r: r.all,
+            params_fn=FixtureState(dimmer=0.8, rgb=(1.0, 0.0, 0.0)),  # Object instead of callable
+            fade_in=0.0,
+            fade_out=0.0,
+            clip_duration=5.0,
+        )
+        deltas = scene.render(1.0, simple_rig)
+        fixture = simple_rig.all[0]
+        delta = deltas[fixture]
+        assert delta.dimmer is not None
+        assert delta.dimmer[1] == pytest.approx(0.8)
+
+    def test_both_object_forms(self, simple_rig: Rig) -> None:
+        """Accepts both selector and params_fn as objects."""
+        fixtures = simple_rig.all
+        scene = SceneClip(
+            selector=fixtures,
+            params_fn=FixtureState(dimmer=0.5),
+            fade_in=0.0,
+            fade_out=0.0,
+            clip_duration=5.0,
+        )
+        deltas = scene.render(1.0, simple_rig)
+        fixture = simple_rig.all[0]
+        delta = deltas[fixture]
+        assert delta.dimmer is not None
+        assert delta.dimmer[1] == pytest.approx(0.5)
+
 
 class TestDimmerPulseClip:
     """Tests for DimmerPulseClip."""
@@ -148,6 +191,19 @@ class TestDimmerPulseClip:
         )
         deltas = pulse.render(10.0, simple_rig)
         assert len(deltas) == 0
+
+    def test_object_selector(self, simple_rig: Rig) -> None:
+        """Accepts a list of fixtures as selector."""
+        fixtures = simple_rig.all
+        pulse = DimmerPulseClip(
+            selector=fixtures,  # List instead of callable
+            rate_hz=1.0,
+            depth=0.5,
+            base=0.5,
+            clip_duration=5.0,
+        )
+        deltas = pulse.render(0.0, simple_rig)
+        assert len(deltas) == 1
 
 
 class TestTimelineClip:

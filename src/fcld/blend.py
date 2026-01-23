@@ -31,9 +31,9 @@ def _clamp(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
 def _apply_op(current: float, op: BlendOp, value: float) -> float:
     if op == BlendOp.SET:
         return value
-    elif op == BlendOp.ADD_CLAMP:
+    if op == BlendOp.ADD_CLAMP:
         return _clamp(current + value)
-    elif op == BlendOp.MUL:
+    if op == BlendOp.MUL:
         return _clamp(current * value)
     return current
 

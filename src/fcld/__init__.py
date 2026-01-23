@@ -6,6 +6,7 @@ from fcld.model import (
     FixtureType,
     GenericRGBDimmer,
     Fixture,
+    FixtureContext,
     Rig,
 )
 from fcld.blend import BlendOp, FixtureDelta, apply_delta, merge_deltas
@@ -19,6 +20,7 @@ __all__ = [
     "FixtureType",
     "GenericRGBDimmer",
     "Fixture",
+    "FixtureContext",
     "Rig",
     "BlendOp",
     "FixtureDelta",

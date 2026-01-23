@@ -5,7 +5,7 @@ import pytest
 from fcld.blend import BlendOp, FixtureDelta
 from fcld.clips import SceneClip, TimelineClip
 from fcld.engine import DMXEngine
-from fcld.model import Fixture, FixtureState, FixtureType, Rig, Vec3
+from fcld.model import Fixture, FixtureContext, FixtureState, FixtureType, Rig, Vec3
 
 
 class MockFixtureType(FixtureType):
@@ -31,7 +31,6 @@ class MockFixtureType(FixtureType):
 def simple_rig() -> Rig:
     """Create a simple rig with one fixture."""
     fixture = Fixture(
-        name="test_fixture",
         fixture_type=MockFixtureType(),
         universe=1,
         address=1,
@@ -45,7 +44,6 @@ def simple_rig() -> Rig:
 def two_fixture_rig() -> Rig:
     """Create a rig with two fixtures."""
     f1 = Fixture(
-        name="fixture_1",
         fixture_type=MockFixtureType(),
         universe=1,
         address=1,
@@ -53,7 +51,6 @@ def two_fixture_rig() -> Rig:
         tags={"left"},
     )
     f2 = Fixture(
-        name="fixture_2",
         fixture_type=MockFixtureType(),
         universe=1,
         address=10,
@@ -189,3 +186,43 @@ class TestDMXEngineInitialization:
         for state in engine._fixture_states.values():
             assert state.dimmer == 0.0
             assert state.rgb == (0.0, 0.0, 0.0)
+
+    def test_optional_rig(self) -> None:
+        """Engine can be created without rig."""
+        engine = DMXEngine()
+        assert engine.rig is None
+        assert len(engine._fixture_states) == 0
+
+    def test_set_rig(self, simple_rig: Rig) -> None:
+        """set_rig initializes fixture states."""
+        engine = DMXEngine()
+        engine.set_rig(simple_rig)
+        assert engine.rig is simple_rig
+        assert len(engine._fixture_states) == len(simple_rig.all)
+
+
+class TestDMXEngineWithFixtureContext:
+    """Tests for auto-collected fixtures with engine."""
+
+    def test_collected_fixtures_work_with_engine(self) -> None:
+        """Fixtures collected via context work correctly with engine."""
+        ft = MockFixtureType()
+        with FixtureContext() as ctx:
+            f1 = Fixture(ft, 1, 1, tags={"all"})
+            f2 = Fixture(ft, 1, 10, tags={"all"})
+
+        rig = Rig(ctx.fixtures)
+        engine = DMXEngine(rig=rig)
+
+        scene = SceneClip(
+            selector=[f1, f2],  # Use collected fixtures directly
+            params_fn=FixtureState(dimmer=1.0, rgb=(1.0, 1.0, 1.0)),
+            fade_in=0.0,
+            fade_out=0.0,
+            clip_duration=10.0,
+        )
+        timeline = TimelineClip().add(0.0, scene)
+        result = engine.render_frame(timeline, t=1.0)
+
+        assert result[1][1] == 255
+        assert result[1][10] == 255

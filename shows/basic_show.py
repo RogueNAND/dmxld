@@ -3,49 +3,27 @@
 from __future__ import annotations
 
 from fcld import (
-    DMXEngine,
     DimmerPulseClip,
     Fixture,
+    FixtureContext,
     FixtureState,
     GenericRGBDimmer,
     Rig,
     SceneClip,
     TimelineClip,
     Vec3,
+    DMXEngine,
 )
 
 
-def all_fixtures(rig: Rig) -> list[Fixture]:
-    """Selector: all fixtures in the rig."""
-    return rig.all
+def run() -> TimelineClip:
+    """Create and return the demo show.
 
-
-def left_side(rig: Rig) -> list[Fixture]:
-    """Selector: fixtures with x < 0."""
-    return [f for f in rig.all if f.pos.x < 0]
-
-
-def right_side(rig: Rig) -> list[Fixture]:
-    """Selector: fixtures with x >= 0."""
-    return [f for f in rig.all if f.pos.x >= 0]
-
-
-def warm_white(_fixture: Fixture) -> FixtureState:
-    """Palette: warm white color at full dimmer."""
-    return FixtureState(dimmer=1.0, rgb=(1.0, 0.8, 0.6))
-
-
-def cool_blue(_fixture: Fixture) -> FixtureState:
-    """Palette: cool blue color at full dimmer."""
-    return FixtureState(dimmer=1.0, rgb=(0.3, 0.5, 1.0))
-
-
-def create_rig() -> Rig:
-    """Create the demo rig with 2 fixtures."""
+    Fixtures are auto-collected by FixtureContext when called from server.
+    """
     fixture_type = GenericRGBDimmer()
 
-    fixture1 = Fixture(
-        name="wash_left",
+    wash_left = Fixture(
         fixture_type=fixture_type,
         universe=1,
         address=1,
@@ -53,8 +31,7 @@ def create_rig() -> Rig:
         tags={"wash", "front", "left"},
     )
 
-    fixture2 = Fixture(
-        name="wash_right",
+    wash_right = Fixture(
         fixture_type=fixture_type,
         universe=1,
         address=5,
@@ -62,60 +39,56 @@ def create_rig() -> Rig:
         tags={"wash", "front", "right"},
     )
 
-    return Rig([fixture1, fixture2])
+    all_fixtures = [wash_left, wash_right]
+    left_side = [wash_left]
+    right_side = [wash_right]
 
-
-def create_show() -> TimelineClip:
-    """Create the demo show timeline."""
     timeline = TimelineClip()
 
-    scene1 = SceneClip(
+    # Scene 1: Warm white fade in on all fixtures
+    timeline.add(0.0, SceneClip(
         selector=all_fixtures,
-        params_fn=warm_white,
+        params_fn=FixtureState(dimmer=1.0, rgb=(1.0, 0.8, 0.6)),
         fade_in=2.0,
         fade_out=2.0,
         clip_duration=10.0,
-    )
-    timeline.add(0.0, scene1)
+    ))
 
-    pulse1 = DimmerPulseClip(
+    # Pulse on left side
+    timeline.add(2.0, DimmerPulseClip(
         selector=left_side,
         rate_hz=0.5,
         depth=0.3,
         base=0.7,
         clip_duration=8.0,
-    )
-    timeline.add(2.0, pulse1)
+    ))
 
-    scene2 = SceneClip(
+    # Scene 2: Cool blue on right side
+    timeline.add(5.0, SceneClip(
         selector=right_side,
-        params_fn=cool_blue,
+        params_fn=FixtureState(dimmer=1.0, rgb=(0.3, 0.5, 1.0)),
         fade_in=1.0,
         fade_out=1.0,
         clip_duration=5.0,
-    )
-    timeline.add(5.0, scene2)
+    ))
 
-    pulse2 = DimmerPulseClip(
+    # Final pulse on all
+    timeline.add(8.0, DimmerPulseClip(
         selector=all_fixtures,
         rate_hz=2.0,
         depth=0.2,
         base=0.8,
         clip_duration=3.0,
-    )
-    timeline.add(8.0, pulse2)
+    ))
 
     return timeline
 
 
-def run(start_at: float = 0.0, fps: float = 40.0) -> None:
-    """Run the demo show."""
-    rig = create_rig()
-    show = create_show()
-
-    engine = DMXEngine(rig=rig, universe_ids=[1], fps=fps)
-    engine.play(show, start_at=start_at)
-
-
 if __name__ == "__main__":
-    run()
+    # For direct execution, manually wrap in FixtureContext
+    with FixtureContext() as ctx:
+        show = run()
+
+    rig = Rig(ctx.fixtures)
+    engine = DMXEngine(rig=rig, universe_ids=[1], fps=40.0)
+    engine.play(show)
