@@ -1,13 +1,10 @@
 [project]
-name = "fcld"
+name = "olald"
 version = "0.1.0"
-description = "FleetCommand Lighting Designer - DMX lighting control engine using OLA"
+description = "OLA Lighting Designer - DMX lighting control library"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
-
-[project.scripts]
-fcld = "fcld.cli:main"
 
 [project.optional-dependencies]
 dev = [

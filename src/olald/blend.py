@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from fcld.model import FixtureState
+from olald.model import FixtureState
 
 
 class BlendOp(Enum):

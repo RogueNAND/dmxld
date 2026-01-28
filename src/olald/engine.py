@@ -8,9 +8,9 @@ import socket
 import time
 from dataclasses import dataclass, field
 
-from fcld.blend import FixtureDelta, merge_deltas
-from fcld.clips import Clip
-from fcld.model import Fixture, FixtureState, Rig
+from olald.blend import FixtureDelta, merge_deltas
+from olald.clips import Clip
+from olald.model import Fixture, FixtureState, Rig
 
 try:
     from ola.ClientWrapper import ClientWrapper

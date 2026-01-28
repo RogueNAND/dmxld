@@ -2,8 +2,8 @@
 
 import pytest
 
-from fcld.blend import BlendOp, FixtureDelta, apply_delta, merge_deltas
-from fcld.model import FixtureState
+from olald.blend import BlendOp, FixtureDelta, apply_delta, merge_deltas
+from olald.model import FixtureState
 
 
 class TestBlendOpSet:

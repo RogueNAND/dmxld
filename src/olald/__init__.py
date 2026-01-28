@@ -1,6 +1,6 @@
-"""FCLD - FleetCommand Lighting Designer - DMX lighting control engine using OLA."""
+"""olald - OLA Lighting Designer - DMX lighting control library."""
 
-from fcld.model import (
+from olald.model import (
     Vec3,
     FixtureState,
     FixtureType,
@@ -9,10 +9,9 @@ from fcld.model import (
     FixtureContext,
     Rig,
 )
-from fcld.blend import BlendOp, FixtureDelta, apply_delta, merge_deltas
-from fcld.clips import Clip, SceneClip, DimmerPulseClip, TimelineClip
-from fcld.engine import DMXEngine
-from fcld.server import run_server, ShowRunner, discover_shows
+from olald.blend import BlendOp, FixtureDelta, apply_delta, merge_deltas
+from olald.clips import Clip, SceneClip, DimmerPulseClip, TimelineClip
+from olald.engine import DMXEngine
 
 __all__ = [
     "Vec3",
@@ -31,9 +30,6 @@ __all__ = [
     "DimmerPulseClip",
     "TimelineClip",
     "DMXEngine",
-    "run_server",
-    "ShowRunner",
-    "discover_shows",
 ]
 
 __version__ = "0.1.0"

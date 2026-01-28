@@ -1,4 +1,4 @@
-"""Clip system for FCLD."""
+"""Clip system for olald."""
 
 from __future__ import annotations
 
@@ -6,8 +6,8 @@ import math
 from dataclasses import dataclass, field
 from typing import Callable, Iterable, Protocol, Union, runtime_checkable
 
-from fcld.blend import BlendOp, FixtureDelta, merge_deltas
-from fcld.model import Fixture, FixtureState, Rig
+from olald.blend import BlendOp, FixtureDelta, merge_deltas
+from olald.model import Fixture, FixtureState, Rig
 
 
 @runtime_checkable

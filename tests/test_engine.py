@@ -2,10 +2,10 @@
 
 import pytest
 
-from fcld.blend import BlendOp, FixtureDelta
-from fcld.clips import SceneClip, TimelineClip
-from fcld.engine import DMXEngine
-from fcld.model import Fixture, FixtureContext, FixtureState, FixtureType, Rig, Vec3
+from olald.blend import BlendOp, FixtureDelta
+from olald.clips import SceneClip, TimelineClip
+from olald.engine import DMXEngine
+from olald.model import Fixture, FixtureContext, FixtureState, FixtureType, Rig, Vec3
 
 
 class MockFixtureType(FixtureType):
