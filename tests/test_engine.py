@@ -2,10 +2,10 @@
 
 import pytest
 
-from olald.blend import BlendOp, FixtureDelta
-from olald.clips import SceneClip, TimelineClip
-from olald.engine import DMXEngine
-from olald.model import Fixture, FixtureContext, FixtureState, FixtureType, Rig, Vec3
+from dmxld.blend import BlendOp, FixtureDelta
+from dmxld.clips import SceneClip, TimelineClip
+from dmxld.engine import DMXEngine, Protocol
+from dmxld.model import Fixture, FixtureContext, FixtureState, FixtureType, Rig, Vec3
 
 
 class MockFixtureType(FixtureType):
@@ -61,7 +61,7 @@ def two_fixture_rig() -> Rig:
 
 
 class TestDMXEngineRenderFrame:
-    """Tests for render_frame without OLA."""
+    """Tests for render_frame without network."""
 
     def test_render_empty_clip(self, simple_rig: Rig) -> None:
         """Empty clip renders fixture states (initialized to zero)."""
@@ -174,10 +174,20 @@ class TestDMXEngineInitialization:
         engine = DMXEngine(rig=simple_rig, fps=60.0)
         assert engine.fps == 60.0
 
-    def test_default_universe(self, simple_rig: Rig) -> None:
-        """Default universe is [1]."""
+    def test_default_protocol(self, simple_rig: Rig) -> None:
+        """Default protocol is sACN."""
         engine = DMXEngine(rig=simple_rig)
-        assert engine.universe_ids == [1]
+        assert engine.protocol == Protocol.SACN
+
+    def test_custom_protocol(self, simple_rig: Rig) -> None:
+        """Custom protocol is respected."""
+        engine = DMXEngine(rig=simple_rig, protocol=Protocol.ARTNET)
+        assert engine.protocol == Protocol.ARTNET
+
+    def test_universes_from_rig(self, simple_rig: Rig) -> None:
+        """Universes are derived from rig fixtures."""
+        engine = DMXEngine(rig=simple_rig)
+        assert engine._get_universes() == [1]
 
     def test_fixture_states_initialized(self, simple_rig: Rig) -> None:
         """Fixture states are initialized for all fixtures."""

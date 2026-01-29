@@ -1,64 +1,36 @@
-"""Clip system for olald."""
+"""Clip system for dmxld."""
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, Protocol, Union, runtime_checkable
+from typing import Callable, Iterable, Protocol, runtime_checkable
 
-from olald.blend import BlendOp, FixtureDelta, merge_deltas
-from olald.model import Fixture, FixtureState, Rig
+from dmxld.blend import BlendOp, FixtureDelta, merge_deltas
+from dmxld.model import Fixture, FixtureState, Rig
 
 
 @runtime_checkable
 class Clip(Protocol):
-    """Protocol for clips that produce fixture deltas over time."""
-
     @property
     def duration(self) -> float | None:
-        """Duration in seconds, or None for infinite clips."""
+        """Duration in seconds, or None for infinite."""
         ...
 
     def render(self, t: float, rig: Rig) -> dict[Fixture, FixtureDelta]:
-        """Render the clip at time t, returning deltas for affected fixtures."""
         ...
 
 
 Selector = Callable[[Rig], Iterable[Fixture]]
 ParamsFn = Callable[[Fixture], FixtureState]
 
-# Flexible input types that accept either callables or objects
-SelectorInput = Union[Callable[[Rig], Iterable[Fixture]], Iterable[Fixture]]
-ParamsFnInput = Union[Callable[[Fixture], FixtureState], FixtureState]
-
-
-def _normalize_selector(selector: SelectorInput) -> Selector:
-    """Normalize selector input to a callable."""
-    if callable(selector):
-        return selector
-    fixtures = list(selector)
-    return lambda rig: fixtures
-
-
-def _normalize_params_fn(params_fn: ParamsFnInput) -> ParamsFn:
-    """Normalize params_fn input to a callable."""
-    if callable(params_fn):
-        return params_fn
-    state = params_fn
-    return lambda fixture: state
-
-
-def _out_of_bounds(t: float, duration: float | None) -> bool:
-    """Check if time is outside clip bounds."""
-    return t < 0 or (duration is not None and t > duration)
-
 
 @dataclass
 class SceneClip:
     """Static scene with optional fade in/out."""
 
-    selector: SelectorInput
-    params_fn: ParamsFnInput
+    selector: Selector | Iterable[Fixture]
+    params_fn: ParamsFn | FixtureState
     fade_in: float = 0.0
     fade_out: float = 0.0
     clip_duration: float | None = None
@@ -67,15 +39,24 @@ class SceneClip:
     _params_fn: ParamsFn = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._selector = _normalize_selector(self.selector)
-        self._params_fn = _normalize_params_fn(self.params_fn)
+        if callable(self.selector):
+            self._selector = self.selector
+        else:
+            fixtures = list(self.selector)
+            self._selector = lambda rig: fixtures
+
+        if callable(self.params_fn):
+            self._params_fn = self.params_fn
+        else:
+            state = self.params_fn
+            self._params_fn = lambda fixture: state
 
     @property
     def duration(self) -> float | None:
         return self.clip_duration
 
     def render(self, t: float, rig: Rig) -> dict[Fixture, FixtureDelta]:
-        if _out_of_bounds(t, self.clip_duration):
+        if t < 0 or (self.clip_duration is not None and t > self.clip_duration):
             return {}
 
         fade_mult = 1.0
@@ -100,7 +81,7 @@ class SceneClip:
 class DimmerPulseClip:
     """Sine wave pulse on dimmer channel."""
 
-    selector: SelectorInput
+    selector: Selector | Iterable[Fixture]
     rate_hz: float = 1.0
     depth: float = 0.5
     base: float = 0.5
@@ -109,14 +90,18 @@ class DimmerPulseClip:
     _selector: Selector = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
-        self._selector = _normalize_selector(self.selector)
+        if callable(self.selector):
+            self._selector = self.selector
+        else:
+            fixtures = list(self.selector)
+            self._selector = lambda rig: fixtures
 
     @property
     def duration(self) -> float | None:
         return self.clip_duration
 
     def render(self, t: float, rig: Rig) -> dict[Fixture, FixtureDelta]:
-        if _out_of_bounds(t, self.clip_duration):
+        if t < 0 or (self.clip_duration is not None and t > self.clip_duration):
             return {}
 
         phase = t * self.rate_hz * 2 * math.pi
@@ -132,7 +117,7 @@ class DimmerPulseClip:
 
 @dataclass
 class TimelineClip:
-    """Timeline containing scheduled clip events."""
+    """Timeline with scheduled clips."""
 
     events: list[tuple[float, Clip]] = field(default_factory=list)
 

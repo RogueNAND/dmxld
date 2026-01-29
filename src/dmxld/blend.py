@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from olald.model import FixtureState
+from dmxld.model import FixtureState
 
 
 class BlendOp(Enum):
@@ -51,7 +51,6 @@ def _apply_rgb_op(
 
 
 def apply_delta(state: FixtureState, delta: FixtureDelta) -> FixtureState:
-    """Apply a single delta to a fixture state, returning a new state."""
     new_dimmer = state.dimmer
     new_rgb = state.rgb
 
@@ -67,8 +66,10 @@ def apply_delta(state: FixtureState, delta: FixtureDelta) -> FixtureState:
 
 
 def merge_deltas(deltas: list[FixtureDelta], initial: FixtureState | None = None) -> FixtureState:
-    """Compose multiple deltas in order, returning the final state."""
-    state = initial.copy() if initial else FixtureState()
+    if initial is None:
+        state = FixtureState()
+    else:
+        state = FixtureState(dimmer=initial.dimmer, rgb=initial.rgb)
     for delta in deltas:
         state = apply_delta(state, delta)
     return state

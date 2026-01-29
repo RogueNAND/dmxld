@@ -2,7 +2,7 @@
 
 import pytest
 
-from olald.model import (
+from dmxld.model import (
     Fixture,
     FixtureContext,
     FixtureState,

@@ -1,7 +1,7 @@
 [project]
-name = "olald"
+name = "dmxld"
 version = "0.1.0"
-description = "OLA Lighting Designer - DMX lighting control library"
+description = "DMX Lighting Designer - DMX lighting control library with sACN and Art-Net support"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}

@@ -1,28 +1,24 @@
-# olald
+# dmxld
 
-DMX lighting control library using [Open Lighting Architecture (OLA)](https://www.openlighting.org/ola/).
+DMX lighting control library with sACN and Art-Net support.
 
 ## Installation
 
 ```bash
-pip install olald
+pip install dmxld
 ```
 
-Requires OLA Python bindings (`pip install ola`) and a running OLA daemon.
-
-## OLA Connection
-
-By default, olald connects to OLA via local Unix socket. For remote connections:
+Requires `sacn` and/or `stupidArtnet` depending on which protocol you use:
 
 ```bash
-export OLA_HOST=192.168.1.100
-export OLA_PORT=9010
+pip install sacn            # For sACN (E1.31)
+pip install stupidArtnet    # For Art-Net
 ```
 
 ## Quick Start
 
 ```python
-from olald import DMXEngine, Rig, Fixture, GenericRGBDimmer, TimelineClip, SceneClip, FixtureState
+from dmxld import DMXEngine, Rig, Fixture, GenericRGBDimmer, TimelineClip, SceneClip, FixtureState
 
 # Define fixtures
 rig = Rig([
@@ -41,9 +37,9 @@ show.add(0.0, SceneClip(
     fade_out=1.0,
 ))
 
-# Play
+# Play (sACN multicast by default)
 engine = DMXEngine(rig=rig)
-engine.play(show)
+engine.play_sync(show)
 ```
 
 ## Examples
@@ -51,7 +47,7 @@ engine.play(show)
 ### Fixtures and Rigs
 
 ```python
-from olald import Fixture, Rig, GenericRGBDimmer, Vec3
+from dmxld import Fixture, Rig, GenericRGBDimmer, Vec3
 
 # Basic fixture
 spot = Fixture(GenericRGBDimmer(), universe=1, address=1)
@@ -78,7 +74,7 @@ washes = rig.by_tag("wash")
 Automatically collect fixtures as they're created:
 
 ```python
-from olald import Fixture, FixtureContext, Rig, GenericRGBDimmer
+from dmxld import Fixture, FixtureContext, Rig, GenericRGBDimmer
 
 with FixtureContext() as ctx:
     Fixture(GenericRGBDimmer(), universe=1, address=1, tags={"front"})
@@ -93,7 +89,7 @@ rig = Rig(ctx.fixtures)
 Static scene with optional fades:
 
 ```python
-from olald import SceneClip, FixtureState
+from dmxld import SceneClip, FixtureState
 
 # All fixtures red at full
 scene = SceneClip(
@@ -124,7 +120,7 @@ scene = SceneClip(
 Sine wave modulation on dimmer:
 
 ```python
-from olald import DimmerPulseClip
+from dmxld import DimmerPulseClip
 
 # Slow pulse on all fixtures
 pulse = DimmerPulseClip(
@@ -141,7 +137,7 @@ pulse = DimmerPulseClip(
 Sequence clips on a timeline:
 
 ```python
-from olald import TimelineClip, SceneClip, DimmerPulseClip, FixtureState
+from dmxld import TimelineClip, SceneClip, DimmerPulseClip, FixtureState
 
 show = TimelineClip()
 
@@ -169,12 +165,38 @@ show.add(1.0, DimmerPulseClip(
 print(f"Show duration: {show.duration}s")
 ```
 
+### Protocol Configuration
+
+```python
+from dmxld import DMXEngine, Protocol, Rig
+
+# sACN (default) - uses E1.31 multicast
+engine = DMXEngine(rig=rig, protocol=Protocol.SACN)
+
+# Art-Net - broadcasts by default
+engine = DMXEngine(rig=rig, protocol=Protocol.ARTNET)
+
+# Art-Net with specific target IP
+engine = DMXEngine(
+    rig=rig,
+    protocol=Protocol.ARTNET,
+    artnet_target="192.168.1.100"
+)
+
+# Unicast to specific IPs per universe
+engine = DMXEngine(
+    rig=rig,
+    protocol=Protocol.SACN,
+    universe_ips={1: "192.168.1.100", 2: "192.168.1.101"}
+)
+```
+
 ### Custom Fixture Types
 
 Implement the `FixtureType` protocol:
 
 ```python
-from olald import Fixture, FixtureState
+from dmxld import Fixture, FixtureState
 
 class MovingHead:
     @property
@@ -204,12 +226,12 @@ class MovingHead:
 mover = Fixture(MovingHead(), universe=1, address=1)
 ```
 
-### Testing Without OLA
+### Testing Without Network
 
-Use `render_frame` to test without a running OLA daemon:
+Use `render_frame` to test without network output:
 
 ```python
-from olald import DMXEngine, Rig, Fixture, GenericRGBDimmer, SceneClip, FixtureState
+from dmxld import DMXEngine, Rig, Fixture, GenericRGBDimmer, SceneClip, FixtureState
 
 rig = Rig([Fixture(GenericRGBDimmer(), universe=1, address=1)])
 engine = DMXEngine(rig=rig)
@@ -229,14 +251,15 @@ print(dmx_data)
 ### Multiple Universes
 
 ```python
-from olald import DMXEngine, Rig, Fixture, GenericRGBDimmer
+from dmxld import DMXEngine, Rig, Fixture, GenericRGBDimmer
 
 rig = Rig([
     Fixture(GenericRGBDimmer(), universe=1, address=1),
     Fixture(GenericRGBDimmer(), universe=2, address=1),
 ])
 
-engine = DMXEngine(rig=rig, universe_ids=[1, 2])
+# Universes auto-detected from fixtures
+engine = DMXEngine(rig=rig)
 ```
 
 ## API Reference
@@ -247,7 +270,7 @@ engine = DMXEngine(rig=rig, universe_ids=[1, 2])
 |-------|-------------|
 | `Fixture` | Physical light with type, universe, address, position, tags |
 | `Rig` | Collection of fixtures with `all`, `by_tag()` helpers |
-| `DMXEngine` | Renders clips and sends DMX via OLA |
+| `DMXEngine` | Renders clips and sends DMX via sACN or Art-Net |
 
 ### Clip Types
 

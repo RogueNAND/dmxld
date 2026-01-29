@@ -2,9 +2,9 @@
 
 import pytest
 
-from olald.blend import BlendOp
-from olald.clips import DimmerPulseClip, SceneClip, TimelineClip
-from olald.model import Fixture, FixtureState, FixtureType, Rig, Vec3
+from dmxld.blend import BlendOp
+from dmxld.clips import DimmerPulseClip, SceneClip, TimelineClip
+from dmxld.model import Fixture, FixtureState, FixtureType, Rig, Vec3
 
 
 class MockFixtureType(FixtureType):

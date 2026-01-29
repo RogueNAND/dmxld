@@ -1,4 +1,4 @@
-"""Data model layer for olald."""
+"""Data model layer for dmxld."""
 
 from __future__ import annotations
 
@@ -23,9 +23,6 @@ class FixtureState:
     dimmer: float = 0.0
     rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
-    def copy(self) -> FixtureState:
-        return FixtureState(dimmer=self.dimmer, rgb=self.rgb)
-
 
 @runtime_checkable
 class FixtureType(Protocol):
@@ -38,7 +35,7 @@ class FixtureType(Protocol):
     def channel_count(self) -> int: ...
 
     def encode(self, state: FixtureState) -> dict[int, int]:
-        """Encode state to DMX channel values (0-255). Keys are channel offsets."""
+        """Encode state to DMX values (0-255)."""
         ...
 
 
@@ -54,8 +51,6 @@ class GenericRGBDimmer:
         return 4
 
     def encode(self, state: FixtureState) -> dict[int, int]:
-        """Encode state to DMX values. Channel offsets: 0=dimmer, 1=R, 2=G, 3=B."""
-
         def to_dmx(v: float) -> int:
             return max(0, min(255, int(v * 255)))
 
@@ -73,7 +68,6 @@ _fixture_registry: ContextVar[list[Fixture] | None] = ContextVar(
 
 
 def _register_fixture(fixture: Fixture) -> None:
-    """Register a fixture with the current context if one exists."""
     registry = _fixture_registry.get()
     if registry is not None:
         registry.append(fixture)
@@ -96,7 +90,6 @@ class FixtureContext:
 
     @property
     def fixtures(self) -> list[Fixture]:
-        """Return collected fixtures."""
         return list(self._fixtures)
 
 
@@ -152,10 +145,7 @@ class Rig:
     def encode_to_dmx(
         self, states: dict[Fixture, FixtureState]
     ) -> dict[int, dict[int, int]]:
-        """Encode fixture states to DMX data per universe.
-
-        Returns: {universe_id: {channel: value}}
-        """
+        """Returns {universe_id: {channel: value}}"""
         universes: dict[int, dict[int, int]] = {}
         for fixture, state in states.items():
             universe_data = universes.setdefault(fixture.universe, {})

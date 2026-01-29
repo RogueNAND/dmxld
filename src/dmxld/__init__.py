@@ -1,6 +1,6 @@
-"""olald - OLA Lighting Designer - DMX lighting control library."""
+"""dmxld - DMX Lighting Designer - DMX lighting control library."""
 
-from olald.model import (
+from dmxld.model import (
     Vec3,
     FixtureState,
     FixtureType,
@@ -9,9 +9,9 @@ from olald.model import (
     FixtureContext,
     Rig,
 )
-from olald.blend import BlendOp, FixtureDelta, apply_delta, merge_deltas
-from olald.clips import Clip, SceneClip, DimmerPulseClip, TimelineClip
-from olald.engine import DMXEngine
+from dmxld.blend import BlendOp, FixtureDelta, apply_delta, merge_deltas
+from dmxld.clips import Clip, SceneClip, DimmerPulseClip, TimelineClip
+from dmxld.engine import DMXEngine, Protocol
 
 __all__ = [
     "Vec3",
@@ -30,6 +30,7 @@ __all__ = [
     "DimmerPulseClip",
     "TimelineClip",
     "DMXEngine",
+    "Protocol",
 ]
 
 __version__ = "0.1.0"
