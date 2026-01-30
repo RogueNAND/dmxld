@@ -15,7 +15,7 @@ from dmxld.blend import (
     merge_deltas,
     compose_lighting_deltas,
 )
-from dmxld.clips import Clip, SceneClip, DimmerPulseClip, TimelineClip, LightingTimeline
+from dmxld.clips import Clip, SceneClip, EffectClip, TimelineClip, LightingTimeline
 from dmxld.engine import DMXEngine, Protocol
 
 # Attributes
@@ -53,7 +53,7 @@ __all__ = [
     # Clips
     "Clip",
     "SceneClip",
-    "DimmerPulseClip",
+    "EffectClip",
     "TimelineClip",
     "LightingTimeline",
     "Timeline",

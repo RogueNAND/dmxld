@@ -4,7 +4,7 @@ import pytest
 
 from dmxld.attributes import DimmerAttr, RGBAttr
 from dmxld.blend import BlendOp
-from dmxld.clips import DimmerPulseClip, SceneClip, TimelineClip
+from dmxld.clips import EffectClip, SceneClip, TimelineClip
 from dmxld.model import Fixture, FixtureState, FixtureType, Rig, Vec3
 
 
@@ -72,20 +72,145 @@ class TestSceneClip:
         delta = deltas[rig.all[0]]
         assert delta.get("dimmer")[1] == pytest.approx(0.8)
 
-
-class TestDimmerPulseClip:
-    """DimmerPulseClip produces MUL operations."""
-
-    def test_produces_mul_delta(self, rig: Rig) -> None:
-        pulse = DimmerPulseClip(
+    def test_blend_op_default_is_set(self, rig: Rig) -> None:
+        """Default blend_op is SET."""
+        scene = SceneClip(
             selector=lambda r: r.all,
-            rate_hz=1.0,
-            depth=0.5,
-            base=0.5,
+            params_fn=lambda f: FixtureState(dimmer=0.5),
             clip_duration=5.0,
         )
-        deltas = pulse.render(0.0, rig)
+        deltas = scene.render(1.0, rig)
         delta = deltas[rig.all[0]]
+        assert delta.get("dimmer")[0] == BlendOp.SET
+
+    def test_blend_op_mul(self, rig: Rig) -> None:
+        """Can specify MUL blend_op."""
+        scene = SceneClip(
+            selector=lambda r: r.all,
+            params_fn=lambda f: FixtureState(dimmer=0.5),
+            clip_duration=5.0,
+            blend_op=BlendOp.MUL,
+        )
+        deltas = scene.render(1.0, rig)
+        delta = deltas[rig.all[0]]
+        assert delta.get("dimmer")[0] == BlendOp.MUL
+
+
+@pytest.fixture
+def multi_fixture_rig() -> Rig:
+    """Rig with multiple fixtures at different positions."""
+    fixture_type = FixtureType(DimmerAttr(), RGBAttr())
+    return Rig([
+        Fixture(fixture_type, universe=1, address=1, pos=Vec3(0.0, 0.0, 0.0)),
+        Fixture(fixture_type, universe=1, address=5, pos=Vec3(1.0, 0.0, 0.0)),
+        Fixture(fixture_type, universe=1, address=9, pos=Vec3(2.0, 0.0, 0.0)),
+    ])
+
+
+class TestEffectClip:
+    """EffectClip with time, fixture, and index access."""
+
+    def test_params_fn_receives_time(self, multi_fixture_rig: Rig) -> None:
+        """params_fn receives current time."""
+        received_times: list[float] = []
+
+        def capture_time(t: float, f: Fixture, i: int) -> FixtureState:
+            received_times.append(t)
+            return FixtureState(dimmer=t / 10.0)
+
+        effect = EffectClip(
+            selector=lambda r: r.all,
+            params_fn=capture_time,
+            clip_duration=10.0,
+        )
+        effect.render(5.0, multi_fixture_rig)
+        assert all(t == 5.0 for t in received_times)
+
+    def test_params_fn_receives_fixture(self, multi_fixture_rig: Rig) -> None:
+        """params_fn receives fixture with position access."""
+        effect = EffectClip(
+            selector=lambda r: r.all,
+            params_fn=lambda t, f, i: FixtureState(dimmer=f.pos.x / 2.0),
+            clip_duration=10.0,
+        )
+        deltas = effect.render(0.0, multi_fixture_rig)
+        fixtures = multi_fixture_rig.all
+        # Dimmer should reflect x position: 0.0, 0.5, 1.0
+        assert deltas[fixtures[0]].get("dimmer")[1] == pytest.approx(0.0)
+        assert deltas[fixtures[1]].get("dimmer")[1] == pytest.approx(0.5)
+        assert deltas[fixtures[2]].get("dimmer")[1] == pytest.approx(1.0)
+
+    def test_params_fn_receives_index(self, multi_fixture_rig: Rig) -> None:
+        """params_fn receives fixture index."""
+        received_indices: list[int] = []
+
+        def capture_index(t: float, f: Fixture, i: int) -> FixtureState:
+            received_indices.append(i)
+            return FixtureState(dimmer=1.0)
+
+        effect = EffectClip(
+            selector=lambda r: r.all,
+            params_fn=capture_index,
+            clip_duration=10.0,
+        )
+        effect.render(0.0, multi_fixture_rig)
+        assert received_indices == [0, 1, 2]
+
+    def test_fade_in(self, multi_fixture_rig: Rig) -> None:
+        """Fade in applies to dimmer."""
+        effect = EffectClip(
+            selector=lambda r: r.all,
+            params_fn=lambda t, f, i: FixtureState(dimmer=1.0),
+            fade_in=2.0,
+            clip_duration=10.0,
+        )
+        deltas = effect.render(1.0, multi_fixture_rig)  # Halfway through fade_in
+        for fixture in multi_fixture_rig.all:
+            assert deltas[fixture].get("dimmer")[1] == pytest.approx(0.5)
+
+    def test_fade_out(self, multi_fixture_rig: Rig) -> None:
+        """Fade out applies to dimmer."""
+        effect = EffectClip(
+            selector=lambda r: r.all,
+            params_fn=lambda t, f, i: FixtureState(dimmer=1.0),
+            fade_out=2.0,
+            clip_duration=10.0,
+        )
+        deltas = effect.render(9.0, multi_fixture_rig)  # Halfway through fade_out
+        for fixture in multi_fixture_rig.all:
+            assert deltas[fixture].get("dimmer")[1] == pytest.approx(0.5)
+
+    def test_empty_outside_duration(self, multi_fixture_rig: Rig) -> None:
+        """Returns empty outside clip duration."""
+        effect = EffectClip(
+            selector=lambda r: r.all,
+            params_fn=lambda t, f, i: FixtureState(dimmer=1.0),
+            clip_duration=5.0,
+        )
+        assert len(effect.render(-1.0, multi_fixture_rig)) == 0
+        assert len(effect.render(10.0, multi_fixture_rig)) == 0
+
+    def test_blend_op_default_is_set(self, multi_fixture_rig: Rig) -> None:
+        """Default blend_op is SET."""
+        effect = EffectClip(
+            selector=lambda r: r.all,
+            params_fn=lambda t, f, i: FixtureState(dimmer=0.5),
+            clip_duration=5.0,
+        )
+        deltas = effect.render(1.0, multi_fixture_rig)
+        delta = deltas[multi_fixture_rig.all[0]]
+        assert delta.get("dimmer")[0] == BlendOp.SET
+
+    def test_blend_op_mul(self, multi_fixture_rig: Rig) -> None:
+        """Can specify MUL blend_op for layered effects."""
+        effect = EffectClip(
+            selector=lambda r: r.all,
+            params_fn=lambda t, f, i: FixtureState(dimmer=0.5),
+            clip_duration=5.0,
+            blend_op=BlendOp.MUL,
+        )
+        deltas = effect.render(1.0, multi_fixture_rig)
+        delta = deltas[multi_fixture_rig.all[0]]
         assert delta.get("dimmer")[0] == BlendOp.MUL
 
 

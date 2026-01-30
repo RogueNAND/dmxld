@@ -166,29 +166,112 @@ scene = SceneClip(
 )
 ```
 
-### DimmerPulseClip
+### EffectClip
 
-Sine wave modulation on dimmer:
+Math-driven effects with access to time, fixture, and index for per-fixture animations:
 
 ```python
-from dmxld import DimmerPulseClip
+from dmxld import EffectClip, FixtureState
+import colorsys
 
-# Slow pulse on all fixtures
-pulse = DimmerPulseClip(
+def hsv_to_rgb(h, s, v):
+    """Convert HSV (0-1) to RGB tuple (0-1)."""
+    return colorsys.hsv_to_rgb(h, s, v)
+
+# Color wave moving across fixtures by X position
+wave = EffectClip(
     selector=lambda r: r.all,
-    rate_hz=0.5,   # 0.5 Hz = 2 second cycle
-    depth=0.4,     # Amplitude of pulse
-    base=0.6,      # Center value
+    params_fn=lambda t, f, i: FixtureState(
+        dimmer=1.0,
+        rgb=hsv_to_rgb((t * 0.2 + f.pos.x * 0.1) % 1.0, 1.0, 1.0)
+    ),
+    clip_duration=10.0,
+)
+
+# Sequential chase by fixture index
+chase = EffectClip(
+    selector=lambda r: r.all,
+    params_fn=lambda t, f, i: FixtureState(
+        dimmer=1.0 if int(t * 4) % 8 == i else 0.0,
+        rgb=(1.0, 0.0, 0.0),
+    ),
+    clip_duration=10.0,
+)
+
+# Rainbow spread across fixtures
+rainbow = EffectClip(
+    selector=lambda r: r.all,
+    params_fn=lambda t, f, i: FixtureState(
+        dimmer=1.0,
+        rgb=hsv_to_rgb((t * 0.1 + i * 0.125) % 1.0, 1.0, 1.0)
+    ),
+    clip_duration=10.0,
+)
+
+# Sine wave dimmer with per-fixture phase offset
+breathing = EffectClip(
+    selector=lambda r: r.all,
+    params_fn=lambda t, f, i: FixtureState(
+        dimmer=0.5 + 0.5 * __import__('math').sin(t * 2 + i * 0.5),
+        rgb=(1.0, 0.8, 0.6),
+    ),
     clip_duration=10.0,
 )
 ```
+
+The `params_fn` receives three arguments:
+- `t`: Current time in seconds
+- `f`: The `Fixture` object (access `f.pos`, `f.tags`, etc.)
+- `i`: Index of the fixture in the selected set (0, 1, 2, ...)
+
+### Blend Operations
+
+Both `SceneClip` and `EffectClip` accept an optional `blend_op` parameter that controls how values combine with other clips:
+
+```python
+from dmxld import SceneClip, EffectClip, FixtureState, BlendOp
+import math
+
+# SET (default) - overwrites the value
+scene = SceneClip(
+    selector=lambda r: r.all,
+    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
+    clip_duration=5.0,
+    blend_op=BlendOp.SET,  # default
+)
+
+# MUL - multiplies with existing value (great for dimmer modulation)
+pulse = EffectClip(
+    selector=lambda r: r.all,
+    params_fn=lambda t, f, i: FixtureState(
+        dimmer=0.5 + 0.5 * math.sin(t * 2 * math.pi)
+    ),
+    clip_duration=10.0,
+    blend_op=BlendOp.MUL,  # modulates on top of other clips
+)
+
+# ADD_CLAMP - adds values, clamped to 0-1
+additive = SceneClip(
+    selector=lambda r: r.by_tag("accent"),
+    params_fn=lambda f: FixtureState(rgb=(0.2, 0.0, 0.0)),
+    clip_duration=5.0,
+    blend_op=BlendOp.ADD_CLAMP,
+)
+```
+
+| BlendOp | Description |
+|---------|-------------|
+| `SET` | Overwrite value (default) |
+| `MUL` | Multiply (for dimming/modulation) |
+| `ADD_CLAMP` | Add and clamp to 0-1 |
 
 ### TimelineClip
 
 Sequence clips on a timeline:
 
 ```python
-from dmxld import TimelineClip, SceneClip, DimmerPulseClip, FixtureState
+import math
+from dmxld import TimelineClip, SceneClip, EffectClip, FixtureState
 
 show = TimelineClip()
 
@@ -207,9 +290,11 @@ show.add(3.0, SceneClip(
 ))
 
 # Overlapping pulse effect from 1-5s
-show.add(1.0, DimmerPulseClip(
+show.add(1.0, EffectClip(
     selector=lambda r: r.by_tag("front"),
-    rate_hz=2.0,
+    params_fn=lambda t, f, i: FixtureState(
+        dimmer=0.5 + 0.5 * math.sin(t * 2.0 * 2 * math.pi)  # 2 Hz pulse
+    ),
     clip_duration=4.0,
 ))
 
@@ -320,7 +405,7 @@ engine = DMXEngine(rig=rig)
 | Clip | Description |
 |------|-------------|
 | `SceneClip` | Static state with optional fade in/out |
-| `DimmerPulseClip` | Sine wave modulation on dimmer |
+| `EffectClip` | Math-driven effects with access to time, fixture, and index |
 | `TimelineClip` | Schedules child clips at specific times |
 
 ### Blend Operations
