@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import threading
-import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING
+
+from timeline import Runner
 
 from dmxld.blend import FixtureDelta, merge_deltas
 from dmxld.clips import Clip
@@ -40,8 +40,6 @@ class _Transport(ABC):
 
 
 class _SACNTransport(_Transport):
-    """sACN (E1.31) transport using sacn library."""
-
     def __init__(
         self,
         universes: list[int],
@@ -74,8 +72,6 @@ class _SACNTransport(_Transport):
 
 
 class _ArtNetTransport(_Transport):
-    """Art-Net transport using stupidArtnet library."""
-
     def __init__(
         self,
         universes: list[int],
@@ -121,16 +117,9 @@ class DMXEngine:
     universe_ips: dict[int, str] = field(default_factory=dict)
     artnet_target: str = "255.255.255.255"
 
-    _running: bool = field(default=False, init=False, repr=False)
-    _fixture_states: dict[Fixture, FixtureState] = field(
-        default_factory=dict, init=False, repr=False
-    )
+    _fixture_states: dict[Fixture, FixtureState] = field(default_factory=dict, init=False, repr=False)
     _transport: _Transport | None = field(default=None, init=False, repr=False)
-    _timer: threading.Timer | None = field(default=None, init=False, repr=False)
-    _done_event: threading.Event | None = field(default=None, init=False, repr=False)
-    _current_clip: Clip | None = field(default=None, init=False, repr=False)
-    _show_start: float = field(default=0.0, init=False, repr=False)
-    _frame_duration: float = field(default=0.0, init=False, repr=False)
+    _runner: Runner | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.rig is not None:
@@ -163,76 +152,52 @@ class DMXEngine:
                 universes, self.universe_ips, self.artnet_target, self.fps
             )
 
-    def _apply_deltas(self, deltas: dict[Fixture, FixtureDelta]) -> None:
+    def _apply_deltas_and_encode(
+        self, deltas: dict[Fixture, FixtureDelta]
+    ) -> dict[int, dict[int, int]]:
         if self.rig is None:
-            return
+            return {}
         for fixture in self.rig.all:
             if fixture in deltas:
                 self._fixture_states[fixture] = merge_deltas(
                     [deltas[fixture]], self._fixture_states[fixture]
                 )
+        return self.rig.encode_to_dmx(self._fixture_states)
+
+    def _send_dmx(self, universe_data: dict[int, dict[int, int]]) -> None:
+        if self._transport is not None:
+            self._transport.send(universe_data)
+
+    def _on_runner_done(self) -> None:
+        if self._transport is not None:
+            self._transport.stop()
+            self._transport = None
 
     def play(self, clip: Clip, start_at: float = 0.0) -> None:
-        """Non-blocking playback."""
         if self.rig is None:
             raise ValueError("No rig configured")
 
         self._transport = self._create_transport()
         self._transport.start()
-
-        self._running = True
-        self._frame_duration = 1.0 / self.fps
-        self._show_start = time.monotonic() - start_at
-        self._current_clip = clip
-        self._done_event = threading.Event()
-
         self._init_fixture_states()
-        self._schedule_frame()
 
-    def _schedule_frame(self) -> None:
-        if not self._running:
-            self._finish_playback()
-            return
-
-        show_time = time.monotonic() - self._show_start
-
-        if (
-            self._current_clip is not None
-            and self._current_clip.duration is not None
-            and show_time > self._current_clip.duration
-        ):
-            self._finish_playback()
-            return
-
-        if self._current_clip is not None and self.rig is not None:
-            deltas = self._current_clip.render(show_time, self.rig)
-            self._apply_deltas(deltas)
-            universe_data = self.rig.encode_to_dmx(self._fixture_states)
-            if self._transport is not None:
-                self._transport.send(universe_data)
-
-        self._timer = threading.Timer(self._frame_duration, self._schedule_frame)
-        self._timer.daemon = True
-        self._timer.start()
-
-    def _finish_playback(self) -> None:
-        self._running = False
-        if self._transport is not None:
-            self._transport.stop()
-            self._transport = None
-        if self._done_event is not None:
-            self._done_event.set()
+        self._runner = Runner(
+            ctx=self.rig,
+            apply_fn=self._apply_deltas_and_encode,
+            output_fn=self._send_dmx,
+            fps=self.fps,
+        )
+        self._runner.play(clip, start_at)
 
     def stop(self) -> None:
-        self._running = False
-        if self._timer is not None:
-            self._timer.cancel()
-            self._timer = None
+        if self._runner is not None:
+            self._runner.stop()
+        self._on_runner_done()
 
     def wait(self) -> None:
-        """Block until playback completes."""
-        if self._done_event is not None:
-            self._done_event.wait()
+        if self._runner is not None:
+            self._runner.wait()
+        self._on_runner_done()
 
     def play_sync(self, clip: Clip, start_at: float = 0.0) -> None:
         self.play(clip, start_at)
@@ -242,14 +207,8 @@ class DMXEngine:
             self.stop()
 
     def render_frame(self, clip: Clip, t: float) -> dict[int, dict[int, int]]:
-        """For testing without network."""
         if self.rig is None:
             return {}
-
-        for fixture in self.rig.all:
-            self._fixture_states[fixture] = FixtureState()
-
+        self._init_fixture_states()
         deltas = clip.render(t, self.rig)
-        self._apply_deltas(deltas)
-
-        return self.rig.encode_to_dmx(self._fixture_states)
+        return self._apply_deltas_and_encode(deltas)

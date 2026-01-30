@@ -4,21 +4,15 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Callable, Iterable, Protocol, runtime_checkable
+from typing import Callable, Iterable
 
-from dmxld.blend import BlendOp, FixtureDelta, merge_deltas
+from timeline import Clip as GenericClip, Timeline
+
+from dmxld.blend import BlendOp, FixtureDelta, compose_lighting_deltas
 from dmxld.model import Fixture, FixtureState, Rig
 
-
-@runtime_checkable
-class Clip(Protocol):
-    @property
-    def duration(self) -> float | None:
-        """Duration in seconds, or None for infinite."""
-        ...
-
-    def render(self, t: float, rig: Rig) -> dict[Fixture, FixtureDelta]:
-        ...
+# Type alias for lighting-specific clips
+Clip = GenericClip[Rig, Fixture, FixtureDelta]
 
 
 Selector = Callable[[Rig], Iterable[Fixture]]
@@ -34,22 +28,6 @@ class SceneClip:
     fade_in: float = 0.0
     fade_out: float = 0.0
     clip_duration: float | None = None
-
-    _selector: Selector = field(init=False, repr=False)
-    _params_fn: ParamsFn = field(init=False, repr=False)
-
-    def __post_init__(self) -> None:
-        if callable(self.selector):
-            self._selector = self.selector
-        else:
-            fixtures = list(self.selector)
-            self._selector = lambda rig: fixtures
-
-        if callable(self.params_fn):
-            self._params_fn = self.params_fn
-        else:
-            state = self.params_fn
-            self._params_fn = lambda fixture: state
 
     @property
     def duration(self) -> float | None:
@@ -67,13 +45,19 @@ class SceneClip:
             if time_remaining < self.fade_out:
                 fade_mult = max(0.0, time_remaining / self.fade_out)
 
+        selector_fn = self.selector if callable(self.selector) else lambda r: self.selector
+        params_fn = self.params_fn if callable(self.params_fn) else lambda f: self.params_fn
+
         result: dict[Fixture, FixtureDelta] = {}
-        for fixture in self._selector(rig):
-            state = self._params_fn(fixture)
-            result[fixture] = FixtureDelta(
-                dimmer=(BlendOp.SET, state.dimmer * fade_mult),
-                rgb=(BlendOp.SET, state.rgb),
-            )
+        for fixture in selector_fn(rig):
+            state = params_fn(fixture)
+            delta = FixtureDelta()
+            for name, value in state.items():
+                if name == "dimmer":
+                    delta[name] = (BlendOp.SET, value * fade_mult)
+                else:
+                    delta[name] = (BlendOp.SET, value)
+            result[fixture] = delta
         return result
 
 
@@ -87,15 +71,6 @@ class DimmerPulseClip:
     base: float = 0.5
     clip_duration: float | None = None
 
-    _selector: Selector = field(init=False, repr=False)
-
-    def __post_init__(self) -> None:
-        if callable(self.selector):
-            self._selector = self.selector
-        else:
-            fixtures = list(self.selector)
-            self._selector = lambda rig: fixtures
-
     @property
     def duration(self) -> float | None:
         return self.clip_duration
@@ -107,55 +82,18 @@ class DimmerPulseClip:
         phase = t * self.rate_hz * 2 * math.pi
         pulse_value = max(0.0, min(1.0, self.base + self.depth * math.sin(phase)))
 
+        selector_fn = self.selector if callable(self.selector) else lambda r: self.selector
         result: dict[Fixture, FixtureDelta] = {}
-        for fixture in self._selector(rig):
-            result[fixture] = FixtureDelta(
-                dimmer=(BlendOp.MUL, pulse_value),
-            )
+        for fixture in selector_fn(rig):
+            delta = FixtureDelta()
+            delta["dimmer"] = (BlendOp.MUL, pulse_value)
+            result[fixture] = delta
         return result
 
 
-@dataclass
-class TimelineClip:
-    """Timeline with scheduled clips."""
+LightingTimeline = Timeline[Rig, Fixture, FixtureDelta]
 
-    events: list[tuple[float, Clip]] = field(default_factory=list)
 
-    @property
-    def duration(self) -> float | None:
-        if not self.events:
-            return 0.0
-        max_end: float = 0.0
-        for start_time, clip in self.events:
-            clip_dur = clip.duration
-            if clip_dur is None:
-                return None
-            max_end = max(max_end, start_time + clip_dur)
-        return max_end
-
-    def add(self, start_time: float, clip: Clip) -> TimelineClip:
-        self.events.append((start_time, clip))
-        return self
-
-    def render(self, t: float, rig: Rig) -> dict[Fixture, FixtureDelta]:
-        fixture_deltas: dict[Fixture, list[FixtureDelta]] = {}
-
-        for start_time, clip in self.events:
-            local_t = t - start_time
-            if local_t < 0:
-                continue
-            if clip.duration is not None and local_t > clip.duration:
-                continue
-
-            deltas = clip.render(local_t, rig)
-            for fixture, delta in deltas.items():
-                fixture_deltas.setdefault(fixture, []).append(delta)
-
-        result: dict[Fixture, FixtureDelta] = {}
-        for fixture, deltas in fixture_deltas.items():
-            merged = merge_deltas(deltas)
-            result[fixture] = FixtureDelta(
-                dimmer=(BlendOp.SET, merged.dimmer),
-                rgb=(BlendOp.SET, merged.rgb),
-            )
-        return result
+def TimelineClip() -> LightingTimeline:
+    """Create a timeline for lighting clips."""
+    return Timeline(compose_fn=compose_lighting_deltas)

@@ -2,9 +2,18 @@
 
 from __future__ import annotations
 
-from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Protocol, runtime_checkable
+from typing import Any, Protocol
+
+
+class Attribute(Protocol):
+    """Attribute protocol for type checking."""
+
+    name: str
+    channel_count: int
+    default_value: Any
+
+    def encode(self, value: Any) -> list[int]: ...
 
 
 @dataclass(frozen=True)
@@ -16,81 +25,51 @@ class Vec3:
     z: float = 0.0
 
 
-@dataclass
-class FixtureState:
-    """Current state of a fixture."""
+class FixtureState(dict[str, Any]):
+    """Fixture state. Just a dict with keyword constructor."""
 
-    dimmer: float = 0.0
-    rgb: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    def __init__(self, **kwargs: Any) -> None:
+        super().__init__(kwargs)
+
+    def copy(self) -> FixtureState:
+        return FixtureState(**self)
+
+    def __repr__(self) -> str:
+        items = ", ".join(f"{k}={v!r}" for k, v in self.items())
+        return f"FixtureState({items})"
 
 
-@runtime_checkable
-class FixtureType(Protocol):
-    """Protocol for fixture type definitions."""
+class FixtureType:
+    """Composable fixture type built from attributes."""
 
-    @property
-    def name(self) -> str: ...
-
-    @property
-    def channel_count(self) -> int: ...
+    def __init__(self, *attributes: Attribute) -> None:
+        self.attributes = attributes
+        self.channel_count = sum(attr.channel_count for attr in attributes)
 
     def encode(self, state: FixtureState) -> dict[int, int]:
         """Encode state to DMX values (0-255)."""
-        ...
-
-
-class GenericRGBDimmer:
-    """Generic RGBD fixture: 4 channels (dimmer, R, G, B)."""
-
-    @property
-    def name(self) -> str:
-        return "GenericRGBDimmer"
-
-    @property
-    def channel_count(self) -> int:
-        return 4
-
-    def encode(self, state: FixtureState) -> dict[int, int]:
-        def to_dmx(v: float) -> int:
-            return max(0, min(255, int(v * 255)))
-
-        return {
-            0: to_dmx(state.dimmer),
-            1: to_dmx(state.rgb[0]),
-            2: to_dmx(state.rgb[1]),
-            3: to_dmx(state.rgb[2]),
-        }
-
-
-_fixture_registry: ContextVar[list[Fixture] | None] = ContextVar(
-    "_fixture_registry", default=None
-)
-
-
-def _register_fixture(fixture: Fixture) -> None:
-    registry = _fixture_registry.get()
-    if registry is not None:
-        registry.append(fixture)
+        result: dict[int, int] = {}
+        offset = 0
+        for attr in self.attributes:
+            value = state.get(attr.name, attr.default_value)
+            dmx_bytes = attr.encode(value)
+            for i, byte in enumerate(dmx_bytes):
+                result[offset + i] = byte
+            offset += attr.channel_count
+        return result
 
 
 class FixtureContext:
     """Context manager that collects fixtures created within its scope."""
 
     def __init__(self) -> None:
-        self._fixtures: list[Fixture] = []
-        self._token: object = None
+        self.fixtures: list[Fixture] = []
 
     def __enter__(self) -> FixtureContext:
-        self._fixtures = []
-        self._token = _fixture_registry.set(self._fixtures)
         return self
 
     def __exit__(self, *args: object) -> None:
-        _fixture_registry.reset(self._token)
-
-    @property
-    def fixtures(self) -> list[Fixture]:
-        return list(self._fixtures)
+        pass
 
 
 @dataclass
@@ -103,9 +82,6 @@ class Fixture:
     pos: Vec3 = field(default_factory=Vec3)
     tags: set[str] = field(default_factory=set)
     meta: dict[str, object] = field(default_factory=dict)
-
-    def __post_init__(self) -> None:
-        _register_fixture(self)
 
     def __hash__(self) -> int:
         return id(self)

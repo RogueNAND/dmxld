@@ -18,13 +18,19 @@ pip install stupidArtnet    # For Art-Net
 ## Quick Start
 
 ```python
-from dmxld import DMXEngine, Rig, Fixture, GenericRGBDimmer, TimelineClip, SceneClip, FixtureState
+from dmxld import (
+    DMXEngine, Rig, Fixture, FixtureType, DimmerAttr, RGBAttr,
+    TimelineClip, SceneClip, FixtureState
+)
+
+# Define fixture type
+RGBPar = FixtureType(DimmerAttr(), RGBAttr())
 
 # Define fixtures
 rig = Rig([
-    Fixture(GenericRGBDimmer(), universe=1, address=1, tags={"front"}),
-    Fixture(GenericRGBDimmer(), universe=1, address=5, tags={"front"}),
-    Fixture(GenericRGBDimmer(), universe=1, address=9, tags={"back"}),
+    Fixture(RGBPar, universe=1, address=1, tags={"front"}),
+    Fixture(RGBPar, universe=1, address=5, tags={"front"}),
+    Fixture(RGBPar, universe=1, address=9, tags={"back"}),
 ])
 
 # Build a show
@@ -44,17 +50,60 @@ engine.play_sync(show)
 
 ## Examples
 
+### Defining Fixture Types
+
+```python
+from dmxld import FixtureType, DimmerAttr, RGBAttr, RGBWAttr, PanAttr, TiltAttr, StrobeAttr, SkipAttr
+
+# Simple RGB par (4 channels: dimmer + RGB)
+RGBPar = FixtureType(DimmerAttr(), RGBAttr())
+
+# RGBW fixture (5 channels: dimmer + RGBW)
+RGBWPar = FixtureType(DimmerAttr(), RGBWAttr())
+
+# Moving head with 16-bit pan/tilt
+MovingHead = FixtureType(
+    DimmerAttr(),
+    RGBAttr(),
+    StrobeAttr(),
+    PanAttr(fine=True),   # 16-bit (2 channels)
+    TiltAttr(fine=True),  # 16-bit (2 channels)
+)
+
+# Skip unused channels in the fixture profile
+WeirdFixture = FixtureType(
+    DimmerAttr(),
+    SkipAttr(2),  # 2 unused channels
+    RGBAttr(),
+)
+```
+
+**Available attributes:**
+
+| Attribute | Channels | Notes |
+|-----------|----------|-------|
+| `DimmerAttr(fine=False)` | 1-2 | 8-bit or 16-bit |
+| `RGBAttr()` | 3 | Red, Green, Blue |
+| `RGBWAttr()` | 4 | Red, Green, Blue, White |
+| `StrobeAttr()` | 1 | 0=off, 1=max |
+| `PanAttr(fine=False)` | 1-2 | 8-bit or 16-bit |
+| `TiltAttr(fine=False)` | 1-2 | 8-bit or 16-bit |
+| `GoboAttr()` | 1 | Gobo wheel selection |
+| `SkipAttr(count)` | n | Placeholder for unused channels |
+
 ### Fixtures and Rigs
 
 ```python
-from dmxld import Fixture, Rig, GenericRGBDimmer, Vec3
+from dmxld import Fixture, Rig, FixtureType, DimmerAttr, RGBAttr, Vec3
+
+RGBPar = FixtureType(DimmerAttr(), RGBAttr())
 
 # Basic fixture
-spot = Fixture(GenericRGBDimmer(), universe=1, address=1)
+spot = Fixture(RGBPar, universe=1, address=1)
 
 # With position and tags
 wash = Fixture(
-    GenericRGBDimmer(),
+    RGBPar,
     universe=1,
     address=5,
     pos=Vec3(x=0.0, y=2.0, z=0.0),
@@ -74,12 +123,14 @@ washes = rig.by_tag("wash")
 Automatically collect fixtures as they're created:
 
 ```python
-from dmxld import Fixture, FixtureContext, Rig, GenericRGBDimmer
+from dmxld import Fixture, FixtureContext, Rig, FixtureType, DimmerAttr, RGBAttr
+
+RGBPar = FixtureType(DimmerAttr(), RGBAttr())
 
 with FixtureContext() as ctx:
-    Fixture(GenericRGBDimmer(), universe=1, address=1, tags={"front"})
-    Fixture(GenericRGBDimmer(), universe=1, address=5, tags={"front"})
-    Fixture(GenericRGBDimmer(), universe=1, address=9, tags={"back"})
+    Fixture(RGBPar, universe=1, address=1, tags={"front"})
+    Fixture(RGBPar, universe=1, address=5, tags={"front"})
+    Fixture(RGBPar, universe=1, address=9, tags={"back"})
 
 rig = Rig(ctx.fixtures)
 ```
@@ -191,39 +242,27 @@ engine = DMXEngine(
 )
 ```
 
-### Custom Fixture Types
+### FixtureState
 
-Implement the `FixtureType` protocol:
+Dict-based state for flexible attribute access:
 
 ```python
-from dmxld import Fixture, FixtureState
+from dmxld import FixtureState
 
-class MovingHead:
-    @property
-    def name(self) -> str:
-        return "MovingHead"
+# Create with keyword args
+state = FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0))
 
-    @property
-    def channel_count(self) -> int:
-        return 8  # dimmer, R, G, B, pan, tilt, pan-fine, tilt-fine
+# Dict-style access
+state["pan"] = 0.5
+state.get("dimmer")  # 1.0
 
-    def encode(self, state: FixtureState) -> dict[int, int]:
-        def to_dmx(v: float) -> int:
-            return max(0, min(255, int(v * 255)))
-
-        return {
-            0: to_dmx(state.dimmer),
-            1: to_dmx(state.rgb[0]),
-            2: to_dmx(state.rgb[1]),
-            3: to_dmx(state.rgb[2]),
-            # Pan/tilt would need extended state
-            4: 128,  # pan center
-            5: 128,  # tilt center
-            6: 0,
-            7: 0,
-        }
-
-mover = Fixture(MovingHead(), universe=1, address=1)
+# Extended state for moving heads
+state = FixtureState(
+    dimmer=1.0,
+    rgbw=(1.0, 0.0, 0.0, 0.5),
+    pan=0.25,
+    tilt=0.75,
+)
 ```
 
 ### Testing Without Network
@@ -231,9 +270,10 @@ mover = Fixture(MovingHead(), universe=1, address=1)
 Use `render_frame` to test without network output:
 
 ```python
-from dmxld import DMXEngine, Rig, Fixture, GenericRGBDimmer, SceneClip, FixtureState
+from dmxld import DMXEngine, Rig, Fixture, FixtureType, DimmerAttr, RGBAttr, SceneClip, FixtureState
 
-rig = Rig([Fixture(GenericRGBDimmer(), universe=1, address=1)])
+RGBPar = FixtureType(DimmerAttr(), RGBAttr())
+rig = Rig([Fixture(RGBPar, universe=1, address=1)])
 engine = DMXEngine(rig=rig)
 
 clip = SceneClip(
@@ -251,11 +291,13 @@ print(dmx_data)
 ### Multiple Universes
 
 ```python
-from dmxld import DMXEngine, Rig, Fixture, GenericRGBDimmer
+from dmxld import DMXEngine, Rig, Fixture, FixtureType, DimmerAttr, RGBAttr
+
+RGBPar = FixtureType(DimmerAttr(), RGBAttr())
 
 rig = Rig([
-    Fixture(GenericRGBDimmer(), universe=1, address=1),
-    Fixture(GenericRGBDimmer(), universe=2, address=1),
+    Fixture(RGBPar, universe=1, address=1),
+    Fixture(RGBPar, universe=2, address=1),
 ])
 
 # Universes auto-detected from fixtures
@@ -269,6 +311,7 @@ engine = DMXEngine(rig=rig)
 | Class | Description |
 |-------|-------------|
 | `Fixture` | Physical light with type, universe, address, position, tags |
+| `FixtureType` | Composable fixture definition built from attributes |
 | `Rig` | Collection of fixtures with `all`, `by_tag()` helpers |
 | `DMXEngine` | Renders clips and sends DMX via sACN or Art-Net |
 
@@ -279,12 +322,6 @@ engine = DMXEngine(rig=rig)
 | `SceneClip` | Static state with optional fade in/out |
 | `DimmerPulseClip` | Sine wave modulation on dimmer |
 | `TimelineClip` | Schedules child clips at specific times |
-
-### Fixture Types
-
-| Type | Channels | Description |
-|------|----------|-------------|
-| `GenericRGBDimmer` | 4 | Dimmer, R, G, B (offsets 0-3) |
 
 ### Blend Operations
 
