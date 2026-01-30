@@ -6,189 +6,138 @@ DMX lighting control library with sACN and Art-Net support.
 
 ```bash
 pip install dmxld
-```
-
-Requires `sacn` and/or `stupidArtnet` depending on which protocol you use:
-
-```bash
 pip install sacn            # For sACN (E1.31)
 pip install stupidArtnet    # For Art-Net
 ```
 
-## Quick Start
+## Getting Started
+
+This tutorial walks through building a complete lighting show. We'll start with the basics and progressively add features.
+
+### Step 1: Define Your Fixtures
+
+First, define what types of fixtures you have. A fixture type describes the DMX channel layout:
 
 ```python
-from dmxld import (
-    DMXEngine, Rig, Fixture, FixtureType, DimmerAttr, RGBAttr,
-    TimelineClip, SceneClip, FixtureState
-)
+from dmxld import FixtureType, DimmerAttr, RGBAttr
 
-# Define fixture type
+# A simple RGB par: 4 channels (dimmer + RGB)
 RGBPar = FixtureType(DimmerAttr(), RGBAttr())
+```
 
-# Define fixtures
+Now create the actual fixtures in your rig. Each fixture needs a universe, address, and optionally tags for grouping:
+
+```python
+from dmxld import Fixture, Rig
+
 rig = Rig([
     Fixture(RGBPar, universe=1, address=1, tags={"front"}),
     Fixture(RGBPar, universe=1, address=5, tags={"front"}),
     Fixture(RGBPar, universe=1, address=9, tags={"back"}),
 ])
-
-# Build a show
-show = TimelineClip()
-show.add(0.0, SceneClip(
-    selector=lambda r: r.all,
-    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
-    clip_duration=3.0,
-    fade_in=1.0,
-    fade_out=1.0,
-))
-
-# Play (sACN multicast by default)
-engine = DMXEngine(rig=rig)
-engine.play_sync(show)
 ```
 
-## Examples
+### Step 2: Create a Scene
 
-### Defining Fixture Types
-
-```python
-from dmxld import FixtureType, DimmerAttr, RGBAttr, RGBWAttr, PanAttr, TiltAttr, StrobeAttr, SkipAttr
-
-# Simple RGB par (4 channels: dimmer + RGB)
-RGBPar = FixtureType(DimmerAttr(), RGBAttr())
-
-# RGBW fixture (5 channels: dimmer + RGBW)
-RGBWPar = FixtureType(DimmerAttr(), RGBWAttr())
-
-# Moving head with 16-bit pan/tilt
-MovingHead = FixtureType(
-    DimmerAttr(),
-    RGBAttr(),
-    StrobeAttr(),
-    PanAttr(fine=True),   # 16-bit (2 channels)
-    TiltAttr(fine=True),  # 16-bit (2 channels)
-)
-
-# Skip unused channels in the fixture profile
-WeirdFixture = FixtureType(
-    DimmerAttr(),
-    SkipAttr(2),  # 2 unused channels
-    RGBAttr(),
-)
-```
-
-**Available attributes:**
-
-| Attribute | Channels | Notes |
-|-----------|----------|-------|
-| `DimmerAttr(fine=False)` | 1-2 | 8-bit or 16-bit |
-| `RGBAttr()` | 3 | Red, Green, Blue |
-| `RGBWAttr()` | 4 | Red, Green, Blue, White |
-| `StrobeAttr()` | 1 | 0=off, 1=max |
-| `PanAttr(fine=False)` | 1-2 | 8-bit or 16-bit |
-| `TiltAttr(fine=False)` | 1-2 | 8-bit or 16-bit |
-| `GoboAttr()` | 1 | Gobo wheel selection |
-| `SkipAttr(count)` | n | Placeholder for unused channels |
-
-### Fixtures and Rigs
-
-```python
-from dmxld import Fixture, Rig, FixtureType, DimmerAttr, RGBAttr, Vec3
-
-RGBPar = FixtureType(DimmerAttr(), RGBAttr())
-
-# Basic fixture
-spot = Fixture(RGBPar, universe=1, address=1)
-
-# With position and tags
-wash = Fixture(
-    RGBPar,
-    universe=1,
-    address=5,
-    pos=Vec3(x=0.0, y=2.0, z=0.0),
-    tags={"wash", "stage-left"},
-)
-
-# Build rig
-rig = Rig([spot, wash])
-
-# Query fixtures
-all_fixtures = rig.all
-washes = rig.by_tag("wash")
-```
-
-### Using FixtureContext
-
-Automatically collect fixtures as they're created:
-
-```python
-from dmxld import Fixture, FixtureContext, Rig, FixtureType, DimmerAttr, RGBAttr
-
-RGBPar = FixtureType(DimmerAttr(), RGBAttr())
-
-with FixtureContext() as ctx:
-    Fixture(RGBPar, universe=1, address=1, tags={"front"})
-    Fixture(RGBPar, universe=1, address=5, tags={"front"})
-    Fixture(RGBPar, universe=1, address=9, tags={"back"})
-
-rig = Rig(ctx.fixtures)
-```
-
-### SceneClip
-
-Static scene with optional fades:
+A `SceneClip` sets fixtures to a static state. The `selector` picks which fixtures to target, and `params_fn` returns the state for each fixture:
 
 ```python
 from dmxld import SceneClip, FixtureState
 
-# All fixtures red at full
-scene = SceneClip(
+red_scene = SceneClip(
     selector=lambda r: r.all,
     params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
-    clip_duration=5.0,
+    clip_duration=3.0,
 )
+```
 
-# With fade in/out
-scene = SceneClip(
+Add fades by specifying `fade_in` and `fade_out`:
+
+```python
+red_scene = SceneClip(
     selector=lambda r: r.all,
-    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(0.0, 0.0, 1.0)),
+    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
     clip_duration=5.0,
     fade_in=1.0,
     fade_out=2.0,
 )
+```
 
-# Target specific fixtures by tag
-scene = SceneClip(
+Target specific fixtures using tags:
+
+```python
+front_only = SceneClip(
     selector=lambda r: r.by_tag("front"),
     params_fn=lambda f: FixtureState(dimmer=0.8, rgb=(1.0, 1.0, 1.0)),
     clip_duration=3.0,
 )
 ```
 
-### EffectClip
+### Step 3: Build a Timeline
 
-Math-driven effects with access to time, fixture, and index for per-fixture animations:
+Arrange clips on a `TimelineClip` to create a show:
 
 ```python
-from dmxld import EffectClip, FixtureState
+from dmxld import TimelineClip
+
+show = TimelineClip()
+show.add(0.0, SceneClip(
+    selector=lambda r: r.all,
+    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
+    clip_duration=3.0,
+    fade_in=1.0,
+))
+show.add(3.0, SceneClip(
+    selector=lambda r: r.all,
+    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(0.0, 0.0, 1.0)),
+    clip_duration=3.0,
+    fade_out=1.0,
+))
+```
+
+### Step 4: Play the Show
+
+The `DMXEngine` renders clips and sends DMX data over the network:
+
+```python
+from dmxld import DMXEngine
+
+engine = DMXEngine(rig=rig)
+engine.play_sync(show)  # Blocks until complete
+```
+
+By default, dmxld uses sACN multicast. For Art-Net or unicast, see [Protocol Configuration](#protocol-configuration) below.
+
+## Adding Dynamic Effects
+
+For animations that change over time, use `EffectClip`. Its `params_fn` receives the current time `t`, the fixture `f`, and the fixture's index `i`:
+
+```python
+from dmxld import EffectClip
+import math
 import colorsys
 
-def hsv_to_rgb(h, s, v):
-    """Convert HSV (0-1) to RGB tuple (0-1)."""
-    return colorsys.hsv_to_rgb(h, s, v)
-
-# Color wave moving across fixtures by X position
-wave = EffectClip(
+# Pulsing dimmer
+pulse = EffectClip(
     selector=lambda r: r.all,
     params_fn=lambda t, f, i: FixtureState(
-        dimmer=1.0,
-        rgb=hsv_to_rgb((t * 0.2 + f.pos.x * 0.1) % 1.0, 1.0, 1.0)
+        dimmer=0.5 + 0.5 * math.sin(t * 2 * math.pi),
+        rgb=(1.0, 0.0, 0.0),
     ),
     clip_duration=10.0,
 )
 
-# Sequential chase by fixture index
+# Rainbow wave across fixtures
+rainbow = EffectClip(
+    selector=lambda r: r.all,
+    params_fn=lambda t, f, i: FixtureState(
+        dimmer=1.0,
+        rgb=colorsys.hsv_to_rgb((t * 0.1 + i * 0.125) % 1.0, 1.0, 1.0),
+    ),
+    clip_duration=10.0,
+)
+
+# Chase sequence
 chase = EffectClip(
     selector=lambda r: r.all,
     params_fn=lambda t, f, i: FixtureState(
@@ -197,224 +146,149 @@ chase = EffectClip(
     ),
     clip_duration=10.0,
 )
-
-# Rainbow spread across fixtures
-rainbow = EffectClip(
-    selector=lambda r: r.all,
-    params_fn=lambda t, f, i: FixtureState(
-        dimmer=1.0,
-        rgb=hsv_to_rgb((t * 0.1 + i * 0.125) % 1.0, 1.0, 1.0)
-    ),
-    clip_duration=10.0,
-)
-
-# Sine wave dimmer with per-fixture phase offset
-breathing = EffectClip(
-    selector=lambda r: r.all,
-    params_fn=lambda t, f, i: FixtureState(
-        dimmer=0.5 + 0.5 * __import__('math').sin(t * 2 + i * 0.5),
-        rgb=(1.0, 0.8, 0.6),
-    ),
-    clip_duration=10.0,
-)
 ```
 
-The `params_fn` receives three arguments:
-- `t`: Current time in seconds
-- `f`: The `Fixture` object (access `f.pos`, `f.tags`, etc.)
-- `i`: Index of the fixture in the selected set (0, 1, 2, ...)
-
-### Blend Operations
-
-Both `SceneClip` and `EffectClip` accept an optional `blend_op` parameter that controls how values combine with other clips:
+Effects can overlap with scenes on the timeline. Use `blend_op` to control how they combine:
 
 ```python
-from dmxld import SceneClip, EffectClip, FixtureState, BlendOp
-import math
+from dmxld import BlendOp
 
-# SET (default) - overwrites the value
-scene = SceneClip(
+show = TimelineClip()
+
+# Base color
+show.add(0.0, SceneClip(
     selector=lambda r: r.all,
     params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
-    clip_duration=5.0,
-    blend_op=BlendOp.SET,  # default
-)
+    clip_duration=10.0,
+))
 
-# MUL - multiplies with existing value (great for dimmer modulation)
-pulse = EffectClip(
+# Pulsing dimmer that multiplies with the base
+show.add(0.0, EffectClip(
     selector=lambda r: r.all,
     params_fn=lambda t, f, i: FixtureState(
         dimmer=0.5 + 0.5 * math.sin(t * 2 * math.pi)
     ),
     clip_duration=10.0,
-    blend_op=BlendOp.MUL,  # modulates on top of other clips
-)
-
-# ADD_CLAMP - adds values, clamped to 0-1
-additive = SceneClip(
-    selector=lambda r: r.by_tag("accent"),
-    params_fn=lambda f: FixtureState(rgb=(0.2, 0.0, 0.0)),
-    clip_duration=5.0,
-    blend_op=BlendOp.ADD_CLAMP,
-)
+    blend_op=BlendOp.MUL,
+))
 ```
 
 | BlendOp | Description |
 |---------|-------------|
-| `SET` | Overwrite value (default) |
-| `MUL` | Multiply (for dimming/modulation) |
+| `SET` | Overwrite (default) |
+| `MUL` | Multiply with existing value |
 | `ADD_CLAMP` | Add and clamp to 0-1 |
 
-### TimelineClip
-
-Sequence clips on a timeline:
+## Protocol Configuration
 
 ```python
-import math
-from dmxld import TimelineClip, SceneClip, EffectClip, FixtureState
+from dmxld import DMXEngine, Protocol
 
-show = TimelineClip()
-
-# Red scene from 0-3s
-show.add(0.0, SceneClip(
-    selector=lambda r: r.all,
-    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
-    clip_duration=3.0,
-))
-
-# Blue scene from 3-6s
-show.add(3.0, SceneClip(
-    selector=lambda r: r.all,
-    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(0.0, 0.0, 1.0)),
-    clip_duration=3.0,
-))
-
-# Overlapping pulse effect from 1-5s
-show.add(1.0, EffectClip(
-    selector=lambda r: r.by_tag("front"),
-    params_fn=lambda t, f, i: FixtureState(
-        dimmer=0.5 + 0.5 * math.sin(t * 2.0 * 2 * math.pi)  # 2 Hz pulse
-    ),
-    clip_duration=4.0,
-))
-
-print(f"Show duration: {show.duration}s")
-```
-
-### Protocol Configuration
-
-```python
-from dmxld import DMXEngine, Protocol, Rig
-
-# sACN (default) - uses E1.31 multicast
+# sACN multicast (default)
 engine = DMXEngine(rig=rig, protocol=Protocol.SACN)
 
-# Art-Net - broadcasts by default
+# Art-Net broadcast
 engine = DMXEngine(rig=rig, protocol=Protocol.ARTNET)
 
-# Art-Net with specific target IP
-engine = DMXEngine(
-    rig=rig,
-    protocol=Protocol.ARTNET,
-    artnet_target="192.168.1.100"
+# Art-Net to specific IP
+engine = DMXEngine(rig=rig, protocol=Protocol.ARTNET, artnet_target="192.168.1.100")
+
+# sACN unicast per universe
+engine = DMXEngine(rig=rig, protocol=Protocol.SACN, universe_ips={1: "192.168.1.100"})
+```
+
+## Testing Without Hardware
+
+Use `render_frame` to see what DMX values would be sent without actually transmitting:
+
+```python
+dmx_data = engine.render_frame(show, t=1.5)
+print(dmx_data)
+# {1: {1: 255, 2: 255, 3: 0, 4: 0}}
+```
+
+## Reference
+
+### Fixture Types
+
+Build fixture types by composing attributes:
+
+```python
+from dmxld import FixtureType, DimmerAttr, RGBAttr, RGBWAttr, PanAttr, TiltAttr, StrobeAttr, SkipAttr
+
+RGBPar = FixtureType(DimmerAttr(), RGBAttr())
+RGBWPar = FixtureType(DimmerAttr(), RGBWAttr())
+MovingHead = FixtureType(
+    DimmerAttr(),
+    RGBAttr(),
+    StrobeAttr(),
+    PanAttr(fine=True),   # 16-bit
+    TiltAttr(fine=True),  # 16-bit
 )
 
-# Unicast to specific IPs per universe
-engine = DMXEngine(
-    rig=rig,
-    protocol=Protocol.SACN,
-    universe_ips={1: "192.168.1.100", 2: "192.168.1.101"}
-)
+# Skip unused channels in a profile
+WeirdFixture = FixtureType(DimmerAttr(), SkipAttr(2), RGBAttr())
 ```
+
+| Attribute | Channels | Notes |
+|-----------|----------|-------|
+| `DimmerAttr(fine=False)` | 1-2 | 8 or 16-bit |
+| `RGBAttr()` | 3 | Red, Green, Blue |
+| `RGBWAttr()` | 4 | Red, Green, Blue, White |
+| `StrobeAttr()` | 1 | 0=off, 1=max |
+| `PanAttr(fine=False)` | 1-2 | 8 or 16-bit |
+| `TiltAttr(fine=False)` | 1-2 | 8 or 16-bit |
+| `GoboAttr()` | 1 | Gobo wheel |
+| `SkipAttr(count)` | n | Unused channels |
 
 ### FixtureState
 
-Dict-based state for flexible attribute access:
+All values are normalized 0.0-1.0:
 
 ```python
 from dmxld import FixtureState
 
-# Create with keyword args
 state = FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0))
+state = FixtureState(dimmer=1.0, rgbw=(1.0, 0.0, 0.0, 0.5), pan=0.25, tilt=0.75)
 
 # Dict-style access
 state["pan"] = 0.5
-state.get("dimmer")  # 1.0
-
-# Extended state for moving heads
-state = FixtureState(
-    dimmer=1.0,
-    rgbw=(1.0, 0.0, 0.0, 0.5),
-    pan=0.25,
-    tilt=0.75,
-)
+state.get("dimmer")
 ```
 
-### Testing Without Network
+### FixtureContext
 
-Use `render_frame` to test without network output:
+Automatically collect fixtures as they're created:
 
 ```python
-from dmxld import DMXEngine, Rig, Fixture, FixtureType, DimmerAttr, RGBAttr, SceneClip, FixtureState
+from dmxld import FixtureContext
 
-RGBPar = FixtureType(DimmerAttr(), RGBAttr())
-rig = Rig([Fixture(RGBPar, universe=1, address=1)])
-engine = DMXEngine(rig=rig)
+with FixtureContext() as ctx:
+    Fixture(RGBPar, universe=1, address=1, tags={"front"})
+    Fixture(RGBPar, universe=1, address=5, tags={"front"})
 
-clip = SceneClip(
+rig = Rig(ctx.fixtures)
+```
+
+### Fixture Positioning
+
+Use `Vec3` for spatial effects:
+
+```python
+from dmxld import Vec3
+
+wash = Fixture(RGBPar, universe=1, address=5, pos=Vec3(x=0.0, y=2.0, z=0.0))
+
+# Use position in effects
+wave = EffectClip(
     selector=lambda r: r.all,
-    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.5, 0.0)),
-    clip_duration=2.0,
+    params_fn=lambda t, f, i: FixtureState(
+        dimmer=1.0,
+        rgb=colorsys.hsv_to_rgb((t * 0.2 + f.pos.x * 0.1) % 1.0, 1.0, 1.0),
+    ),
+    clip_duration=10.0,
 )
-
-# Render at t=1.0s
-dmx_data = engine.render_frame(clip, t=1.0)
-print(dmx_data)
-# {1: {1: 255, 2: 255, 3: 127, 4: 0}}
 ```
-
-### Multiple Universes
-
-```python
-from dmxld import DMXEngine, Rig, Fixture, FixtureType, DimmerAttr, RGBAttr
-
-RGBPar = FixtureType(DimmerAttr(), RGBAttr())
-
-rig = Rig([
-    Fixture(RGBPar, universe=1, address=1),
-    Fixture(RGBPar, universe=2, address=1),
-])
-
-# Universes auto-detected from fixtures
-engine = DMXEngine(rig=rig)
-```
-
-## API Reference
-
-### Core Classes
-
-| Class | Description |
-|-------|-------------|
-| `Fixture` | Physical light with type, universe, address, position, tags |
-| `FixtureType` | Composable fixture definition built from attributes |
-| `Rig` | Collection of fixtures with `all`, `by_tag()` helpers |
-| `DMXEngine` | Renders clips and sends DMX via sACN or Art-Net |
-
-### Clip Types
-
-| Clip | Description |
-|------|-------------|
-| `SceneClip` | Static state with optional fade in/out |
-| `EffectClip` | Math-driven effects with access to time, fixture, and index |
-| `TimelineClip` | Schedules child clips at specific times |
-
-### Blend Operations
-
-| BlendOp | Description |
-|---------|-------------|
-| `SET` | Overwrite value |
-| `MUL` | Multiply (for dimming) |
-| `ADD_CLAMP` | Add and clamp to 0-1 |
 
 ## License
 
