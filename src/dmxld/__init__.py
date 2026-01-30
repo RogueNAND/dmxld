@@ -33,8 +33,8 @@ from dmxld.attributes import (
 # Color
 from dmxld.color import RGB, RGBW
 
-# Re-export Timeline from timeline package for convenience
-from timeline import Timeline
+# Re-export from timeline package for convenience
+from timeline import Timeline, TempoMap, BPMTimeline
 
 __all__ = [
     # Model
@@ -57,6 +57,8 @@ __all__ = [
     "TimelineClip",
     "LightingTimeline",
     "Timeline",
+    "TempoMap",
+    "BPMTimeline",
     # Engine
     "DMXEngine",
     "Protocol",

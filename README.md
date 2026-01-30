@@ -179,6 +179,42 @@ show.add(0.0, EffectClip(
 | `MUL` | Multiply with existing value |
 | `ADD_CLAMP` | Add and clamp to 0-1 |
 
+## Syncing to Music with BPM
+
+For music-synced shows, use `BPMTimeline` to schedule clips at beat positions instead of seconds:
+
+```python
+from dmxld import BPMTimeline, TempoMap, compose_lighting_deltas
+
+tempo = TempoMap(128)  # 128 BPM
+show = BPMTimeline(compose_fn=compose_lighting_deltas, tempo_map=tempo)
+
+show.add(0, intro_scene)    # Beat 0
+show.add(16, verse_scene)   # Beat 16
+show.add(32, chorus_scene)  # Beat 32
+```
+
+For songs with tempo changes, call `set_tempo` at the beat where the tempo changes:
+
+```python
+tempo = TempoMap(120)
+tempo.set_tempo(64, 140)   # Speed up at beat 64
+tempo.set_tempo(128, 100)  # Slow down at beat 128
+```
+
+To sync effects to the beat, use `tempo.beat(t)` in your params_fn:
+
+```python
+strobe = EffectClip(
+    selector=lambda r: r.all,
+    params_fn=lambda t, f, i: FixtureState(
+        dimmer=1.0 if int(tempo.beat(t)) % 2 == 0 else 0.0,
+        rgb=(1.0, 1.0, 1.0),
+    ),
+    clip_duration=tempo.time(32),  # 32 beats
+)
+```
+
 ## Protocol Configuration
 
 ```python
