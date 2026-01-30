@@ -1,10 +1,10 @@
-"""Tests for clips and timeline."""
+"""Tests for clips."""
 
 import pytest
 
 from dmxld.attributes import DimmerAttr, RGBAttr
 from dmxld.blend import BlendOp
-from dmxld.clips import EffectClip, SceneClip, TimelineClip
+from dmxld.clips import EffectClip, SceneClip
 from dmxld.model import Fixture, FixtureState, FixtureType, Rig, Vec3
 
 
@@ -212,64 +212,3 @@ class TestEffectClip:
         deltas = effect.render(1.0, multi_fixture_rig)
         delta = deltas[multi_fixture_rig.all[0]]
         assert delta.get("dimmer")[0] == BlendOp.MUL
-
-
-class TestTimelineClip:
-    """TimelineClip scheduling and compositing."""
-
-    def test_duration_from_children(self) -> None:
-        timeline = TimelineClip()
-        scene = SceneClip(
-            selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=1.0),
-            clip_duration=5.0,
-        )
-        timeline.add(10.0, scene)
-        assert timeline.duration == 15.0  # 10.0 + 5.0
-
-    def test_add_chains(self) -> None:
-        timeline = TimelineClip()
-        scene = SceneClip(
-            selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=1.0),
-            clip_duration=5.0,
-        )
-        result = timeline.add(0.0, scene)
-        assert result is timeline
-
-    def test_time_adjustment(self, rig: Rig) -> None:
-        """Child clip receives time relative to its start."""
-        timeline = TimelineClip()
-        scene = SceneClip(
-            selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=1.0),
-            clip_duration=5.0,
-        )
-        timeline.add(2.0, scene)
-
-        # Before scene starts
-        assert len(timeline.render(1.0, rig)) == 0
-        # During scene
-        assert len(timeline.render(3.0, rig)) == 1
-        # After scene ends
-        assert len(timeline.render(8.0, rig)) == 0
-
-    def test_overlapping_clips(self, rig: Rig) -> None:
-        """Both clips contribute when overlapping."""
-        timeline = TimelineClip()
-        scene1 = SceneClip(
-            selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=0.5),
-            clip_duration=10.0,
-        )
-        scene2 = SceneClip(
-            selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=0.8),
-            clip_duration=10.0,
-        )
-        timeline.add(0.0, scene1)
-        timeline.add(5.0, scene2)
-
-        # At t=7.0, both clips are active
-        deltas = timeline.render(7.0, rig)
-        assert rig.all[0] in deltas

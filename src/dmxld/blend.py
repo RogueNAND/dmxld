@@ -81,12 +81,3 @@ def merge_deltas(
     for delta in deltas:
         state = apply_delta(state, delta)
     return state
-
-
-def compose_lighting_deltas(deltas: list[FixtureDelta]) -> FixtureDelta:
-    """Compose multiple deltas for timeline compositing."""
-    merged = merge_deltas(deltas)
-    result = FixtureDelta()
-    for name, value in merged.items():
-        result[name] = (BlendOp.SET, value)
-    return result

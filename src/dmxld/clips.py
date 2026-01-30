@@ -3,15 +3,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Iterable
+from typing import Callable, Iterable, Protocol
 
-from timeline import Clip as GenericClip, Timeline
-
-from dmxld.blend import BlendOp, FixtureDelta, compose_lighting_deltas
+from dmxld.blend import BlendOp, FixtureDelta
 from dmxld.model import Fixture, FixtureState, Rig
 
-# Type alias for lighting-specific clips
-Clip = GenericClip[Rig, Fixture, FixtureDelta]
+
+class Clip(Protocol):
+    """Protocol for clips that can be rendered."""
+
+    @property
+    def duration(self) -> float | None:
+        """Duration in seconds, or None for infinite."""
+        ...
+
+    def render(self, t: float, rig: Rig) -> dict[Fixture, FixtureDelta]:
+        """Render the clip at time t, returning deltas for affected fixtures."""
+        ...
 
 
 Selector = Callable[[Rig], Iterable[Fixture]]
@@ -139,11 +147,3 @@ class EffectClip:
                     delta[name] = (self.blend_op, value)
             result[fixture] = delta
         return result
-
-
-LightingTimeline = Timeline[Rig, Fixture, FixtureDelta]
-
-
-def TimelineClip() -> LightingTimeline:
-    """Create a timeline for lighting clips."""
-    return Timeline(compose_fn=compose_lighting_deltas)

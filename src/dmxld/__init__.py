@@ -13,9 +13,8 @@ from dmxld.blend import (
     FixtureDelta,
     apply_delta,
     merge_deltas,
-    compose_lighting_deltas,
 )
-from dmxld.clips import Clip, SceneClip, EffectClip, TimelineClip, LightingTimeline
+from dmxld.clips import Clip, SceneClip, EffectClip
 from dmxld.engine import DMXEngine, Protocol
 
 # Attributes
@@ -33,9 +32,6 @@ from dmxld.attributes import (
 # Color
 from dmxld.color import RGB, RGBW
 
-# Re-export from timeline package for convenience
-from timeline import Timeline, TempoMap, BPMTimeline
-
 __all__ = [
     # Model
     "Vec3",
@@ -49,16 +45,10 @@ __all__ = [
     "FixtureDelta",
     "apply_delta",
     "merge_deltas",
-    "compose_lighting_deltas",
     # Clips
     "Clip",
     "SceneClip",
     "EffectClip",
-    "TimelineClip",
-    "LightingTimeline",
-    "Timeline",
-    "TempoMap",
-    "BPMTimeline",
     # Engine
     "DMXEngine",
     "Protocol",

@@ -12,7 +12,7 @@ pip install stupidArtnet    # For Art-Net
 
 ## Getting Started
 
-This tutorial walks through building a complete lighting show. We'll start with the basics and progressively add features.
+This tutorial walks through building fixtures, scenes, and effects.
 
 ### Step 1: Define Your Fixtures
 
@@ -73,42 +73,48 @@ front_only = SceneClip(
 )
 ```
 
-### Step 3: Build a Timeline
+### Step 3: Render and Send DMX
 
-Arrange clips on a `TimelineClip` to create a show:
-
-```python
-from dmxld import TimelineClip
-
-show = TimelineClip()
-show.add(0.0, SceneClip(
-    selector=lambda r: r.all,
-    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
-    clip_duration=3.0,
-    fade_in=1.0,
-))
-show.add(3.0, SceneClip(
-    selector=lambda r: r.all,
-    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(0.0, 0.0, 1.0)),
-    clip_duration=3.0,
-    fade_out=1.0,
-))
-```
-
-### Step 4: Play the Show
-
-The `DMXEngine` renders clips and sends DMX data over the network:
+The `DMXEngine` renders clips to DMX values and sends them over the network:
 
 ```python
 from dmxld import DMXEngine
 
 engine = DMXEngine(rig=rig)
-engine.play_sync(show)  # Blocks until complete
+
+# Render a single frame at time t
+dmx_data = engine.render_frame(red_scene, t=1.0)
+# {1: {1: 255, 2: 255, 3: 0, 4: 0}}
+
+# Send to lights
+engine.start()          # Open network connection
+engine.send(dmx_data)   # Send DMX data
+engine.stop()           # Close connection
 ```
 
-By default, dmxld uses sACN multicast. For Art-Net or unicast, see [Protocol Configuration](#protocol-configuration) below.
+### Step 4: Build Your Own Playback Loop
 
-## Adding Dynamic Effects
+dmxld focuses on rendering - you control the playback loop:
+
+```python
+import time
+
+engine = DMXEngine(rig=rig)
+engine.start()
+
+t = 0.0
+while t < red_scene.duration:
+    dmx_data = engine.render_frame(red_scene, t)
+    engine.send(dmx_data)
+    time.sleep(1/40)  # 40 fps
+    t += 1/40
+
+engine.stop()
+```
+
+For more sophisticated show programming with timelines, tempo sync, and scheduling, see the [timeline](https://github.com/youruser/timeline) library which integrates seamlessly with dmxld.
+
+## Dynamic Effects
 
 For animations that change over time, use `EffectClip`. Its `params_fn` receives the current time `t`, the fixture `f`, and the fixture's index `i`:
 
@@ -148,29 +154,22 @@ chase = EffectClip(
 )
 ```
 
-Effects can overlap with scenes on the timeline. Use `blend_op` to control how they combine:
+## Blending
+
+Use `blend_op` to control how clips combine when layered:
 
 ```python
 from dmxld import BlendOp
 
-show = TimelineClip()
-
-# Base color
-show.add(0.0, SceneClip(
-    selector=lambda r: r.all,
-    params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
-    clip_duration=10.0,
-))
-
-# Pulsing dimmer that multiplies with the base
-show.add(0.0, EffectClip(
+# Pulsing dimmer that multiplies with the base value
+pulse_modifier = EffectClip(
     selector=lambda r: r.all,
     params_fn=lambda t, f, i: FixtureState(
         dimmer=0.5 + 0.5 * math.sin(t * 2 * math.pi)
     ),
     clip_duration=10.0,
     blend_op=BlendOp.MUL,
-))
+)
 ```
 
 | BlendOp | Description |
@@ -178,42 +177,6 @@ show.add(0.0, EffectClip(
 | `SET` | Overwrite (default) |
 | `MUL` | Multiply with existing value |
 | `ADD_CLAMP` | Add and clamp to 0-1 |
-
-## Syncing to Music with BPM
-
-For music-synced shows, use `BPMTimeline` to schedule clips at beat positions instead of seconds:
-
-```python
-from dmxld import BPMTimeline, TempoMap, compose_lighting_deltas
-
-tempo = TempoMap(128)  # 128 BPM
-show = BPMTimeline(compose_fn=compose_lighting_deltas, tempo_map=tempo)
-
-show.add(0, intro_scene)    # Beat 0
-show.add(16, verse_scene)   # Beat 16
-show.add(32, chorus_scene)  # Beat 32
-```
-
-For songs with tempo changes, call `set_tempo` at the beat where the tempo changes:
-
-```python
-tempo = TempoMap(120)
-tempo.set_tempo(64, 140)   # Speed up at beat 64
-tempo.set_tempo(128, 100)  # Slow down at beat 128
-```
-
-To sync effects to the beat, use `tempo.beat(t)` in your params_fn:
-
-```python
-strobe = EffectClip(
-    selector=lambda r: r.all,
-    params_fn=lambda t, f, i: FixtureState(
-        dimmer=1.0 if int(tempo.beat(t)) % 2 == 0 else 0.0,
-        rgb=(1.0, 1.0, 1.0),
-    ),
-    clip_duration=tempo.time(32),  # 32 beats
-)
-```
 
 ## Protocol Configuration
 
@@ -235,10 +198,10 @@ engine = DMXEngine(rig=rig, protocol=Protocol.SACN, universe_ips={1: "192.168.1.
 
 ## Testing Without Hardware
 
-Use `render_frame` to see what DMX values would be sent without actually transmitting:
+Use `render_frame` to see what DMX values would be sent without transmitting:
 
 ```python
-dmx_data = engine.render_frame(show, t=1.5)
+dmx_data = engine.render_frame(red_scene, t=1.5)
 print(dmx_data)
 # {1: {1: 255, 2: 255, 3: 0, 4: 0}}
 ```
@@ -326,6 +289,25 @@ wave = EffectClip(
 )
 ```
 
-## License
+### DMXEngine API
 
-MIT
+```python
+engine = DMXEngine(
+    rig=rig,
+    protocol=Protocol.SACN,  # or Protocol.ARTNET
+    fps=40.0,
+    universe_ips={},         # Optional unicast IPs per universe
+    artnet_target="255.255.255.255",  # Art-Net broadcast target
+)
+
+# Rendering
+dmx_data = engine.render_frame(clip, t)  # Returns {universe: {channel: value}}
+
+# Transport control
+engine.start()              # Open network connection
+engine.send(dmx_data)       # Send DMX data
+engine.stop()               # Close connection
+
+# Rig management
+engine.set_rig(new_rig)     # Change rig after creation
+```

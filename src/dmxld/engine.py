@@ -7,8 +7,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from timeline import Runner
-
 from dmxld.blend import FixtureDelta, merge_deltas
 from dmxld.clips import Clip
 from dmxld.model import Fixture, FixtureState, Rig
@@ -109,7 +107,7 @@ class _ArtNetTransport(_Transport):
 
 @dataclass
 class DMXEngine:
-    """DMX engine that plays clips via sACN or Art-Net."""
+    """DMX engine that renders clips and sends DMX via sACN or Art-Net."""
 
     rig: Rig | None = None
     protocol: Protocol = Protocol.SACN
@@ -119,7 +117,6 @@ class DMXEngine:
 
     _fixture_states: dict[Fixture, FixtureState] = field(default_factory=dict, init=False, repr=False)
     _transport: _Transport | None = field(default=None, init=False, repr=False)
-    _runner: Runner | None = field(default=None, init=False, repr=False)
 
     def __post_init__(self) -> None:
         if self.rig is not None:
@@ -164,47 +161,22 @@ class DMXEngine:
                 )
         return self.rig.encode_to_dmx(self._fixture_states)
 
-    def _send_dmx(self, universe_data: dict[int, dict[int, int]]) -> None:
-        if self._transport is not None:
-            self._transport.send(universe_data)
+    def start(self) -> None:
+        """Start the DMX transport (sACN or Art-Net)."""
+        if self._transport is None:
+            self._transport = self._create_transport()
+            self._transport.start()
 
-    def _on_runner_done(self) -> None:
+    def stop(self) -> None:
+        """Stop the DMX transport."""
         if self._transport is not None:
             self._transport.stop()
             self._transport = None
 
-    def play(self, clip: Clip, start_at: float = 0.0) -> None:
-        if self.rig is None:
-            raise ValueError("No rig configured")
-
-        self._transport = self._create_transport()
-        self._transport.start()
-        self._init_fixture_states()
-
-        self._runner = Runner(
-            ctx=self.rig,
-            apply_fn=self._apply_deltas_and_encode,
-            output_fn=self._send_dmx,
-            fps=self.fps,
-        )
-        self._runner.play(clip, start_at)
-
-    def stop(self) -> None:
-        if self._runner is not None:
-            self._runner.stop()
-        self._on_runner_done()
-
-    def wait(self) -> None:
-        if self._runner is not None:
-            self._runner.wait()
-        self._on_runner_done()
-
-    def play_sync(self, clip: Clip, start_at: float = 0.0) -> None:
-        self.play(clip, start_at)
-        try:
-            self.wait()
-        except KeyboardInterrupt:
-            self.stop()
+    def send(self, universe_data: dict[int, dict[int, int]]) -> None:
+        """Send DMX data to the transport."""
+        if self._transport is not None:
+            self._transport.send(universe_data)
 
     def render_frame(self, clip: Clip, t: float) -> dict[int, dict[int, int]]:
         if self.rig is None:

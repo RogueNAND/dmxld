@@ -5,6 +5,10 @@ description = "DMX Lighting Designer - DMX lighting control library with sACN an
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
+dependencies = [
+    "sacn>=1.9",
+    "stupidArtnet>=1.4",
+]
 
 [project.optional-dependencies]
 dev = [

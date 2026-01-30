@@ -3,9 +3,9 @@
 import pytest
 
 from dmxld.attributes import DimmerAttr, RGBAttr
-from dmxld.clips import SceneClip, TimelineClip
+from dmxld.clips import SceneClip
 from dmxld.engine import DMXEngine
-from dmxld.model import Fixture, FixtureState, FixtureType, Rig, Vec3
+from dmxld.model import Fixture, FixtureState, FixtureType, Rig
 
 
 RGBFixture = FixtureType(DimmerAttr(), RGBAttr())
@@ -34,8 +34,7 @@ class TestRenderFrame:
             params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 1.0, 1.0)),
             clip_duration=10.0,
         )
-        timeline = TimelineClip().add(0.0, scene)
-        result = engine.render_frame(timeline, t=1.0)
+        result = engine.render_frame(scene, t=1.0)
 
         # Fixture at address 1: dimmer=ch1, rgb=ch2-4
         assert result[1][1] == 255  # dimmer
@@ -50,8 +49,7 @@ class TestRenderFrame:
             params_fn=lambda f: FixtureState(dimmer=0.5),
             clip_duration=10.0,
         )
-        timeline = TimelineClip().add(0.0, scene)
-        result = engine.render_frame(timeline, t=1.0)
+        result = engine.render_frame(scene, t=1.0)
         assert result[1][1] == 127
 
     def test_multiple_fixtures(self, two_fixture_rig: Rig) -> None:
@@ -61,8 +59,7 @@ class TestRenderFrame:
             params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
             clip_duration=10.0,
         )
-        timeline = TimelineClip().add(0.0, scene)
-        result = engine.render_frame(timeline, t=1.0)
+        result = engine.render_frame(scene, t=1.0)
 
         # Fixture 1 at address 1
         assert result[1][1] == 255  # dimmer
@@ -79,8 +76,7 @@ class TestRenderFrame:
             params_fn=lambda f: FixtureState(dimmer=1.0),
             clip_duration=10.0,
         )
-        timeline = TimelineClip().add(0.0, scene)
-        result = engine.render_frame(timeline, t=1.0)
+        result = engine.render_frame(scene, t=1.0)
 
         assert result[1][1] == 255   # left fixture lit
         assert result[1][10] == 0    # right fixture dark
