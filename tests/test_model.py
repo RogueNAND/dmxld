@@ -87,3 +87,37 @@ class TestRig:
         assert dmx[1][1] == 255
         assert dmx[1][10] == 255
         assert dmx[1][20] == 255
+
+
+class TestRigOverlapDetection:
+    """Overlap detection for fixture channels within a universe."""
+
+    def test_overlapping_fixtures_in_init_raises(self) -> None:
+        """Two fixtures with overlapping channels should raise."""
+        with pytest.raises(ValueError, match="overlaps"):
+            Rig([
+                Fixture(RGBDimmer, 1, 1),   # channels 1-4
+                Fixture(RGBDimmer, 1, 3),   # channels 3-6, overlaps!
+            ])
+
+    def test_overlapping_fixtures_via_add_raises(self) -> None:
+        """Adding an overlapping fixture should raise."""
+        rig = Rig([Fixture(RGBDimmer, 1, 1)])  # channels 1-4
+        with pytest.raises(ValueError, match="overlaps"):
+            rig.add(Fixture(RGBDimmer, 1, 4))  # channels 4-7, overlaps at 4
+
+    def test_adjacent_fixtures_ok(self) -> None:
+        """Adjacent but non-overlapping fixtures should work."""
+        rig = Rig([
+            Fixture(RGBDimmer, 1, 1),   # channels 1-4
+            Fixture(RGBDimmer, 1, 5),   # channels 5-8, adjacent ok
+        ])
+        assert len(rig.all) == 2
+
+    def test_same_address_different_universe_ok(self) -> None:
+        """Same address in different universes should not conflict."""
+        rig = Rig([
+            Fixture(RGBDimmer, 1, 1),
+            Fixture(RGBDimmer, 2, 1),  # same address, different universe
+        ])
+        assert len(rig.all) == 2

@@ -96,8 +96,11 @@ class Rig:
     """Collection of fixtures with lookup helpers."""
 
     def __init__(self, fixtures: list[Fixture] | None = None):
-        self._fixtures: list[Fixture] = fixtures or []
+        self._fixtures: list[Fixture] = []
         self._by_tag: dict[str, list[Fixture]] = {}
+        for f in fixtures or []:
+            self._check_overlap(f)
+            self._fixtures.append(f)
         self._rebuild_indices()
 
     def _rebuild_indices(self) -> None:
@@ -106,7 +109,27 @@ class Rig:
             for tag in f.tags:
                 self._by_tag.setdefault(tag, []).append(f)
 
+    def _check_overlap(self, new_fixture: Fixture) -> None:
+        """Raise ValueError if new_fixture overlaps with existing fixtures."""
+        new_start = new_fixture.address
+        new_end = new_fixture.address + new_fixture.fixture_type.channel_count - 1
+
+        for existing in self._fixtures:
+            if existing.universe != new_fixture.universe:
+                continue
+            existing_start = existing.address
+            existing_end = existing.address + existing.fixture_type.channel_count - 1
+
+            # Check for overlap: ranges overlap if one starts before the other ends
+            if new_start <= existing_end and existing_start <= new_end:
+                raise ValueError(
+                    f"Fixture at universe {new_fixture.universe} address {new_fixture.address} "
+                    f"(channels {new_start}-{new_end}) overlaps with existing fixture "
+                    f"at address {existing.address} (channels {existing_start}-{existing_end})"
+                )
+
     def add(self, fixture: Fixture) -> None:
+        self._check_overlap(fixture)
         self._fixtures.append(fixture)
         for tag in fixture.tags:
             self._by_tag.setdefault(tag, []).append(fixture)
