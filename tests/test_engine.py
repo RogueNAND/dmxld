@@ -5,7 +5,7 @@ import pytest
 from dmxld.attributes import DimmerAttr, RGBAttr
 from dmxld.clips import SceneClip
 from dmxld.engine import DMXEngine
-from dmxld.model import Fixture, FixtureState, FixtureType, Rig
+from dmxld.model import Fixture, FixtureGroup, FixtureState, FixtureType, Rig
 
 
 RGBFixture = FixtureType(DimmerAttr(), RGBAttr())
@@ -17,11 +17,14 @@ def rig() -> Rig:
 
 
 @pytest.fixture
-def two_fixture_rig() -> Rig:
-    return Rig([
-        Fixture(RGBFixture, universe=1, address=1, tags={"left"}),
-        Fixture(RGBFixture, universe=1, address=10, tags={"right"}),
+def two_fixture_rig() -> tuple[Rig, FixtureGroup, FixtureGroup]:
+    left = FixtureGroup()
+    right = FixtureGroup()
+    rig = Rig([
+        Fixture(RGBFixture, universe=1, address=1, groups={left}),
+        Fixture(RGBFixture, universe=1, address=10, groups={right}),
     ])
+    return rig, left, right
 
 
 class TestRenderFrame:
@@ -31,7 +34,7 @@ class TestRenderFrame:
         engine = DMXEngine(rig=rig)
         scene = SceneClip(
             selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 1.0, 1.0)),
+            params=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 1.0, 1.0)),
             clip_duration=10.0,
         )
         result = engine.render_frame(scene, t=1.0)
@@ -46,17 +49,20 @@ class TestRenderFrame:
         engine = DMXEngine(rig=rig)
         scene = SceneClip(
             selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=0.5),
+            params=lambda f: FixtureState(dimmer=0.5),
             clip_duration=10.0,
         )
         result = engine.render_frame(scene, t=1.0)
         assert result[1][1] == 127
 
-    def test_multiple_fixtures(self, two_fixture_rig: Rig) -> None:
-        engine = DMXEngine(rig=two_fixture_rig)
+    def test_multiple_fixtures(
+        self, two_fixture_rig: tuple[Rig, FixtureGroup, FixtureGroup]
+    ) -> None:
+        rig, left, right = two_fixture_rig
+        engine = DMXEngine(rig=rig)
         scene = SceneClip(
             selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
+            params=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
             clip_duration=10.0,
         )
         result = engine.render_frame(scene, t=1.0)
@@ -69,11 +75,14 @@ class TestRenderFrame:
         assert result[1][10] == 255  # dimmer
         assert result[1][11] == 255  # red
 
-    def test_selector_filtering(self, two_fixture_rig: Rig) -> None:
-        engine = DMXEngine(rig=two_fixture_rig)
+    def test_selector_filtering(
+        self, two_fixture_rig: tuple[Rig, FixtureGroup, FixtureGroup]
+    ) -> None:
+        rig, left, right = two_fixture_rig
+        engine = DMXEngine(rig=rig)
         scene = SceneClip(
-            selector=lambda r: r.by_tag("left"),
-            params_fn=lambda f: FixtureState(dimmer=1.0),
+            selector=left,  # FixtureGroup as selector
+            params=lambda f: FixtureState(dimmer=1.0),
             clip_duration=10.0,
         )
         result = engine.render_frame(scene, t=1.0)

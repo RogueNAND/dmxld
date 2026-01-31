@@ -9,7 +9,7 @@ from dmxld.attributes import (
     PanAttr,
     SkipAttr,
 )
-from dmxld.color import RGB, RGBW
+from dmxld.color import Color, rgb, rgbw
 
 
 class TestDimmerAttr:
@@ -37,9 +37,13 @@ class TestRGBAttr:
         assert attr.channel_count == 3
         assert attr.encode((1.0, 0.5, 0.0)) == [255, 127, 0]
 
-    def test_rgb_object(self) -> None:
+    def test_color_object(self) -> None:
         attr = RGBAttr()
-        assert attr.encode(RGB(1.0, 0.5, 0.0)) == [255, 127, 0]
+        assert attr.encode(Color(1.0, 0.5, 0.0)) == [255, 127, 0]
+
+    def test_rgb_helper(self) -> None:
+        attr = RGBAttr()
+        assert attr.encode(rgb(1.0, 0.5, 0.0)) == [255, 127, 0]
 
 
 class TestRGBWAttr:
@@ -50,9 +54,13 @@ class TestRGBWAttr:
         assert attr.channel_count == 4
         assert attr.encode((1.0, 0.5, 0.0, 0.25)) == [255, 127, 0, 63]
 
-    def test_rgbw_object(self) -> None:
+    def test_color_object(self) -> None:
         attr = RGBWAttr()
-        assert attr.encode(RGBW(1.0, 0.0, 0.0, 0.5)) == [255, 0, 0, 127]
+        assert attr.encode(Color(1.0, 0.0, 0.0, 0.5)) == [255, 0, 0, 127]
+
+    def test_rgbw_helper(self) -> None:
+        attr = RGBWAttr()
+        assert attr.encode(rgbw(1.0, 0.0, 0.0, 0.5)) == [255, 0, 0, 127]
 
 
 class TestPanTiltAttr:

@@ -23,7 +23,7 @@ class TestSceneClip:
     def test_renders_during_duration(self, rig: Rig) -> None:
         scene = SceneClip(
             selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=1.0),
+            params=lambda f: FixtureState(dimmer=1.0),
             clip_duration=10.0,
         )
         assert scene.duration == 10.0
@@ -33,7 +33,7 @@ class TestSceneClip:
     def test_empty_outside_duration(self, rig: Rig) -> None:
         scene = SceneClip(
             selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=1.0),
+            params=lambda f: FixtureState(dimmer=1.0),
             clip_duration=5.0,
         )
         deltas = scene.render(10.0, rig)
@@ -42,7 +42,7 @@ class TestSceneClip:
     def test_fade_in(self, rig: Rig) -> None:
         scene = SceneClip(
             selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=1.0),
+            params=lambda f: FixtureState(dimmer=1.0),
             fade_in=2.0,
             clip_duration=10.0,
         )
@@ -53,7 +53,7 @@ class TestSceneClip:
     def test_fade_out(self, rig: Rig) -> None:
         scene = SceneClip(
             selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=1.0),
+            params=lambda f: FixtureState(dimmer=1.0),
             fade_out=2.0,
             clip_duration=10.0,
         )
@@ -65,7 +65,7 @@ class TestSceneClip:
         """Accepts fixtures list and FixtureState directly (not just callables)."""
         scene = SceneClip(
             selector=rig.all,
-            params_fn=FixtureState(dimmer=0.8),
+            params=FixtureState(dimmer=0.8),
             clip_duration=5.0,
         )
         deltas = scene.render(1.0, rig)
@@ -76,7 +76,7 @@ class TestSceneClip:
         """Default blend_op is SET."""
         scene = SceneClip(
             selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=0.5),
+            params=lambda f: FixtureState(dimmer=0.5),
             clip_duration=5.0,
         )
         deltas = scene.render(1.0, rig)
@@ -87,7 +87,7 @@ class TestSceneClip:
         """Can specify MUL blend_op."""
         scene = SceneClip(
             selector=lambda r: r.all,
-            params_fn=lambda f: FixtureState(dimmer=0.5),
+            params=lambda f: FixtureState(dimmer=0.5),
             clip_duration=5.0,
             blend_op=BlendOp.MUL,
         )
@@ -110,8 +110,8 @@ def multi_fixture_rig() -> Rig:
 class TestEffectClip:
     """EffectClip with time, fixture, and index access."""
 
-    def test_params_fn_receives_time(self, multi_fixture_rig: Rig) -> None:
-        """params_fn receives current time."""
+    def test_params_receives_time(self, multi_fixture_rig: Rig) -> None:
+        """params receives current time."""
         received_times: list[float] = []
 
         def capture_time(t: float, f: Fixture, i: int) -> FixtureState:
@@ -120,17 +120,17 @@ class TestEffectClip:
 
         effect = EffectClip(
             selector=lambda r: r.all,
-            params_fn=capture_time,
+            params=capture_time,
             clip_duration=10.0,
         )
         effect.render(5.0, multi_fixture_rig)
         assert all(t == 5.0 for t in received_times)
 
-    def test_params_fn_receives_fixture(self, multi_fixture_rig: Rig) -> None:
-        """params_fn receives fixture with position access."""
+    def test_params_receives_fixture(self, multi_fixture_rig: Rig) -> None:
+        """params receives fixture with position access."""
         effect = EffectClip(
             selector=lambda r: r.all,
-            params_fn=lambda t, f, i: FixtureState(dimmer=f.pos.x / 2.0),
+            params=lambda t, f, i: FixtureState(dimmer=f.pos.x / 2.0),
             clip_duration=10.0,
         )
         deltas = effect.render(0.0, multi_fixture_rig)
@@ -140,8 +140,8 @@ class TestEffectClip:
         assert deltas[fixtures[1]].get("dimmer")[1] == pytest.approx(0.5)
         assert deltas[fixtures[2]].get("dimmer")[1] == pytest.approx(1.0)
 
-    def test_params_fn_receives_index(self, multi_fixture_rig: Rig) -> None:
-        """params_fn receives fixture index."""
+    def test_params_receives_index(self, multi_fixture_rig: Rig) -> None:
+        """params receives fixture index."""
         received_indices: list[int] = []
 
         def capture_index(t: float, f: Fixture, i: int) -> FixtureState:
@@ -150,7 +150,7 @@ class TestEffectClip:
 
         effect = EffectClip(
             selector=lambda r: r.all,
-            params_fn=capture_index,
+            params=capture_index,
             clip_duration=10.0,
         )
         effect.render(0.0, multi_fixture_rig)
@@ -160,7 +160,7 @@ class TestEffectClip:
         """Fade in applies to dimmer."""
         effect = EffectClip(
             selector=lambda r: r.all,
-            params_fn=lambda t, f, i: FixtureState(dimmer=1.0),
+            params=lambda t, f, i: FixtureState(dimmer=1.0),
             fade_in=2.0,
             clip_duration=10.0,
         )
@@ -172,7 +172,7 @@ class TestEffectClip:
         """Fade out applies to dimmer."""
         effect = EffectClip(
             selector=lambda r: r.all,
-            params_fn=lambda t, f, i: FixtureState(dimmer=1.0),
+            params=lambda t, f, i: FixtureState(dimmer=1.0),
             fade_out=2.0,
             clip_duration=10.0,
         )
@@ -184,7 +184,7 @@ class TestEffectClip:
         """Returns empty outside clip duration."""
         effect = EffectClip(
             selector=lambda r: r.all,
-            params_fn=lambda t, f, i: FixtureState(dimmer=1.0),
+            params=lambda t, f, i: FixtureState(dimmer=1.0),
             clip_duration=5.0,
         )
         assert len(effect.render(-1.0, multi_fixture_rig)) == 0
@@ -194,7 +194,7 @@ class TestEffectClip:
         """Default blend_op is SET."""
         effect = EffectClip(
             selector=lambda r: r.all,
-            params_fn=lambda t, f, i: FixtureState(dimmer=0.5),
+            params=lambda t, f, i: FixtureState(dimmer=0.5),
             clip_duration=5.0,
         )
         deltas = effect.render(1.0, multi_fixture_rig)
@@ -205,7 +205,7 @@ class TestEffectClip:
         """Can specify MUL blend_op for layered effects."""
         effect = EffectClip(
             selector=lambda r: r.all,
-            params_fn=lambda t, f, i: FixtureState(dimmer=0.5),
+            params=lambda t, f, i: FixtureState(dimmer=0.5),
             clip_duration=5.0,
             blend_op=BlendOp.MUL,
         )

@@ -3,7 +3,77 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Iterator, Protocol
+from weakref import WeakSet
+
+if TYPE_CHECKING:
+    from dmxld.model import Fixture, Rig
+
+
+class FixtureGroup:
+    """A group of fixtures that can be used as a selector.
+
+    Groups are defined before fixtures and passed to fixtures via the groups parameter.
+    Groups are callable (returning fixtures) and iterable.
+
+    Examples:
+        front = FixtureGroup()
+        back = FixtureGroup()
+
+        FrontPar = FixtureType(DimmerAttr(), RGBAttr(), groups={front})
+        FrontPar(1, 1)
+
+        # Use as selector
+        SceneClip(selector=front, ...)
+
+        # Iterate
+        for f in front:
+            ...
+
+        # Compose groups
+        all_stage = front | back    # union
+        overlap = front & back      # intersection
+    """
+
+    def __init__(self) -> None:
+        self._fixtures: WeakSet[Fixture] = WeakSet()
+
+    def _add(self, fixture: Fixture) -> None:
+        """Register a fixture with this group (called from Fixture.__post_init__)."""
+        self._fixtures.add(fixture)
+
+    def __call__(self, rig: Rig | None = None) -> list[Fixture]:
+        """Return fixtures in this group (Selector protocol)."""
+        return list(self._fixtures)
+
+    def __iter__(self) -> Iterator[Fixture]:
+        """Iterate over fixtures in this group."""
+        return iter(self._fixtures)
+
+    def __len__(self) -> int:
+        """Number of fixtures in this group."""
+        return len(self._fixtures)
+
+    def __or__(self, other: FixtureGroup) -> FixtureGroup:
+        """Union of two groups."""
+        result = FixtureGroup()
+        for f in self._fixtures:
+            result._fixtures.add(f)
+        for f in other._fixtures:
+            result._fixtures.add(f)
+        return result
+
+    def __and__(self, other: FixtureGroup) -> FixtureGroup:
+        """Intersection of two groups."""
+        result = FixtureGroup()
+        other_set = set(other._fixtures)
+        for f in self._fixtures:
+            if f in other_set:
+                result._fixtures.add(f)
+        return result
+
+    def __repr__(self) -> str:
+        return f"FixtureGroup({len(self._fixtures)} fixtures)"
 
 
 class Attribute(Protocol):
@@ -42,9 +112,32 @@ class FixtureState(dict[str, Any]):
 class FixtureType:
     """Composable fixture type built from attributes."""
 
-    def __init__(self, *attributes: Attribute) -> None:
+    def __init__(
+        self,
+        *attributes: Attribute,
+        groups: set[FixtureGroup] | None = None,
+    ) -> None:
         self.attributes = attributes
         self.channel_count = sum(attr.channel_count for attr in attributes)
+        self.default_groups = groups or set()
+
+    def __call__(
+        self,
+        universe: int,
+        address: int,
+        pos: Vec3 | None = None,
+        groups: set[FixtureGroup] | None = None,
+        meta: dict[str, object] | None = None,
+    ) -> Fixture:
+        """Create a fixture of this type."""
+        return Fixture(
+            fixture_type=self,
+            universe=universe,
+            address=address,
+            pos=pos or Vec3(),
+            groups=set(self.default_groups) | (groups or set()),
+            meta=meta or {},
+        )
 
     def encode(self, state: FixtureState) -> dict[int, int]:
         """Encode state to DMX values (0-255)."""
@@ -80,8 +173,13 @@ class Fixture:
     universe: int
     address: int
     pos: Vec3 = field(default_factory=Vec3)
-    tags: set[str] = field(default_factory=set)
+    groups: set[FixtureGroup] = field(default_factory=set)
     meta: dict[str, object] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        """Register this fixture with its groups."""
+        for group in self.groups:
+            group._add(self)
 
     def __hash__(self) -> int:
         return id(self)
@@ -97,17 +195,9 @@ class Rig:
 
     def __init__(self, fixtures: list[Fixture] | None = None):
         self._fixtures: list[Fixture] = []
-        self._by_tag: dict[str, list[Fixture]] = {}
         for f in fixtures or []:
             self._check_overlap(f)
             self._fixtures.append(f)
-        self._rebuild_indices()
-
-    def _rebuild_indices(self) -> None:
-        self._by_tag.clear()
-        for f in self._fixtures:
-            for tag in f.tags:
-                self._by_tag.setdefault(tag, []).append(f)
 
     def _check_overlap(self, new_fixture: Fixture) -> None:
         """Raise ValueError if new_fixture overlaps with existing fixtures."""
@@ -131,15 +221,10 @@ class Rig:
     def add(self, fixture: Fixture) -> None:
         self._check_overlap(fixture)
         self._fixtures.append(fixture)
-        for tag in fixture.tags:
-            self._by_tag.setdefault(tag, []).append(fixture)
 
     @property
     def all(self) -> list[Fixture]:
         return list(self._fixtures)
-
-    def by_tag(self, tag: str) -> list[Fixture]:
-        return list(self._by_tag.get(tag, []))
 
     def encode_to_dmx(
         self, states: dict[Fixture, FixtureState]

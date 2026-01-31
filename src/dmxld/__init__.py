@@ -6,6 +6,7 @@ from dmxld.model import (
     FixtureType,
     Fixture,
     FixtureContext,
+    FixtureGroup,
     Rig,
 )
 from dmxld.blend import (
@@ -30,7 +31,7 @@ from dmxld.attributes import (
 )
 
 # Color
-from dmxld.color import RGB, RGBW
+from dmxld.color import Color, rgb, rgbw
 
 __all__ = [
     # Model
@@ -39,6 +40,7 @@ __all__ = [
     "FixtureType",
     "Fixture",
     "FixtureContext",
+    "FixtureGroup",
     "Rig",
     # Blend
     "BlendOp",
@@ -62,8 +64,9 @@ __all__ = [
     "GoboAttr",
     "SkipAttr",
     # Color
-    "RGB",
-    "RGBW",
+    "Color",
+    "rgb",
+    "rgbw",
 ]
 
 __version__ = "0.1.0"

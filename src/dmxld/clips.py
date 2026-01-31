@@ -36,7 +36,7 @@ class SceneClip:
     """
 
     selector: Selector | Iterable[Fixture]
-    params_fn: ParamsFn | FixtureState
+    params: ParamsFn | FixtureState
     fade_in: float = 0.0
     fade_out: float = 0.0
     clip_duration: float | None = None
@@ -59,7 +59,7 @@ class SceneClip:
                 fade_mult = max(0.0, time_remaining / self.fade_out)
 
         selector_fn = self.selector if callable(self.selector) else lambda r: self.selector
-        params_fn = self.params_fn if callable(self.params_fn) else lambda f: self.params_fn
+        params_fn = self.params if callable(self.params) else lambda f: self.params
 
         result: dict[Fixture, FixtureDelta] = {}
         for fixture in selector_fn(rig):
@@ -82,7 +82,7 @@ EffectParamsFn = Callable[[float, Fixture, int], FixtureState]
 class EffectClip:
     """Math-driven effect with access to time, fixture, and index.
 
-    The params_fn receives (t, fixture, index) allowing per-fixture
+    The params function receives (t, fixture, index) allowing per-fixture
     effects based on time, position, or iteration order.
 
     Args:
@@ -93,7 +93,7 @@ class EffectClip:
     Example - color wave across fixtures by X position:
         EffectClip(
             selector=lambda r: r.all,
-            params_fn=lambda t, f, i: FixtureState(
+            params=lambda t, f, i: FixtureState(
                 dimmer=1.0,
                 rgb=hsv_to_rgb((t * 0.2 + f.pos.x * 0.1) % 1.0, 1.0, 1.0)
             ),
@@ -103,7 +103,7 @@ class EffectClip:
     Example - dimmer pulse layered on top (using MUL):
         EffectClip(
             selector=lambda r: r.all,
-            params_fn=lambda t, f, i: FixtureState(
+            params=lambda t, f, i: FixtureState(
                 dimmer=0.5 + 0.5 * math.sin(t * 2 * math.pi)
             ),
             clip_duration=10.0,
@@ -112,7 +112,7 @@ class EffectClip:
     """
 
     selector: Selector | Iterable[Fixture]
-    params_fn: EffectParamsFn
+    params: EffectParamsFn
     fade_in: float = 0.0
     fade_out: float = 0.0
     clip_duration: float | None = None
@@ -138,7 +138,7 @@ class EffectClip:
 
         result: dict[Fixture, FixtureDelta] = {}
         for idx, fixture in enumerate(selector_fn(rig)):
-            state = self.params_fn(t, fixture, idx)
+            state = self.params(t, fixture, idx)
             delta = FixtureDelta()
             for name, value in state.items():
                 if name == "dimmer":

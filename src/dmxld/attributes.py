@@ -5,8 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from dmxld.color import RGB, RGBW
-
 
 def _to_dmx(v: float) -> int:
     return max(0, min(255, int(v * 255)))
@@ -53,9 +51,7 @@ class RGBAttr:
     def default_value(self) -> tuple[float, float, float]:
         return (0.0, 0.0, 0.0)
 
-    def encode(self, value: tuple[float, float, float] | RGB) -> list[int]:
-        if isinstance(value, RGB):
-            value = value.as_tuple()
+    def encode(self, value: tuple[float, ...]) -> list[int]:
         return [_to_dmx(value[0]), _to_dmx(value[1]), _to_dmx(value[2])]
 
 
@@ -73,9 +69,7 @@ class RGBWAttr:
     def default_value(self) -> tuple[float, float, float, float]:
         return (0.0, 0.0, 0.0, 0.0)
 
-    def encode(self, value: tuple[float, float, float, float] | RGBW) -> list[int]:
-        if isinstance(value, RGBW):
-            value = value.as_tuple()
+    def encode(self, value: tuple[float, ...]) -> list[int]:
         return [_to_dmx(v) for v in value[:4]]
 
 

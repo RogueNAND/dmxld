@@ -2,7 +2,7 @@
 
 import pytest
 
-from dmxld.model import Fixture, FixtureState, FixtureType, Rig, Vec3
+from dmxld.model import Fixture, FixtureGroup, FixtureState, FixtureType, Rig, Vec3
 from dmxld.attributes import DimmerAttr, RGBAttr
 
 
@@ -43,6 +43,35 @@ class TestFixtureType:
         encoded = RGBDimmer.encode(state)
         assert encoded == {0: 255, 1: 255, 2: 0, 3: 0}
 
+    def test_callable_creates_fixture(self) -> None:
+        """FixtureType is callable and creates Fixture."""
+        front = FixtureGroup()
+        f = RGBDimmer(universe=1, address=10, groups={front})
+        assert f.fixture_type is RGBDimmer
+        assert f.universe == 1
+        assert f.address == 10
+        assert front in f.groups
+        assert f in list(front)
+
+    def test_default_groups(self) -> None:
+        """FixtureType can have default groups."""
+        front = FixtureGroup()
+        FrontPar = FixtureType(DimmerAttr(), RGBAttr(), groups={front})
+
+        f = FrontPar(universe=1, address=1)
+        assert front in f.groups
+        assert f in list(front)
+
+    def test_groups_are_additive(self) -> None:
+        """Per-fixture groups add to default groups."""
+        front = FixtureGroup()
+        back = FixtureGroup()
+        FrontPar = FixtureType(DimmerAttr(), RGBAttr(), groups={front})
+
+        f = FrontPar(universe=1, address=1, groups={back})
+        assert front in f.groups  # default
+        assert back in f.groups   # added
+
 
 class TestFixture:
     """Fixture identity and hashing."""
@@ -62,23 +91,75 @@ class TestFixture:
         assert d[f2] == "second"
 
 
+class TestFixtureGroup:
+    """FixtureGroup as selector and for grouping fixtures."""
+
+    def test_group_collects_fixtures(self) -> None:
+        front = FixtureGroup()
+        f1 = Fixture(DimmerOnly, 1, 1, groups={front})
+        f2 = Fixture(DimmerOnly, 1, 5, groups={front})
+
+        assert len(front) == 2
+        assert f1 in list(front)
+        assert f2 in list(front)
+
+    def test_fixture_in_multiple_groups(self) -> None:
+        front = FixtureGroup()
+        back = FixtureGroup()
+        f1 = Fixture(DimmerOnly, 1, 1, groups={front, back})
+
+        assert f1 in list(front)
+        assert f1 in list(back)
+
+    def test_group_callable_as_selector(self) -> None:
+        front = FixtureGroup()
+        f1 = Fixture(DimmerOnly, 1, 1, groups={front})
+
+        # Callable returns list of fixtures
+        result = front(None)
+        assert f1 in result
+
+    def test_group_union(self) -> None:
+        front = FixtureGroup()
+        back = FixtureGroup()
+        f1 = Fixture(DimmerOnly, 1, 1, groups={front})
+        f2 = Fixture(DimmerOnly, 1, 5, groups={back})
+
+        combined = front | back
+        assert len(combined) == 2
+        assert f1 in list(combined)
+        assert f2 in list(combined)
+
+    def test_group_intersection(self) -> None:
+        front = FixtureGroup()
+        back = FixtureGroup()
+        f1 = Fixture(DimmerOnly, 1, 1, groups={front})
+        f2 = Fixture(DimmerOnly, 1, 5, groups={front, back})
+        f3 = Fixture(DimmerOnly, 1, 10, groups={back})
+
+        overlap = front & back
+        fixtures = list(overlap)
+        assert len(fixtures) == 1
+        assert f2 in fixtures
+        assert f1 not in fixtures
+        assert f3 not in fixtures
+
+
 class TestRig:
     """Rig fixture selection and DMX encoding."""
 
     @pytest.fixture
     def rig(self) -> Rig:
+        front = FixtureGroup()
+        back = FixtureGroup()
         return Rig([
-            Fixture(DimmerOnly, 1, 1, tags={"front"}),
-            Fixture(DimmerOnly, 1, 10, tags={"front"}),
-            Fixture(DimmerOnly, 1, 20, tags={"back"}),
+            Fixture(DimmerOnly, 1, 1, groups={front}),
+            Fixture(DimmerOnly, 1, 10, groups={front}),
+            Fixture(DimmerOnly, 1, 20, groups={back}),
         ])
 
     def test_all(self, rig: Rig) -> None:
         assert len(rig.all) == 3
-
-    def test_by_tag(self, rig: Rig) -> None:
-        assert len(rig.by_tag("front")) == 2
-        assert len(rig.by_tag("nonexistent")) == 0
 
     def test_encode_to_dmx(self, rig: Rig) -> None:
         states = {f: FixtureState(dimmer=1.0) for f in rig.all}
