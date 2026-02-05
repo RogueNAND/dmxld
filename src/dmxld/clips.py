@@ -26,6 +26,19 @@ Selector = Callable[[Rig], Iterable[Fixture]]
 ParamsFn = Callable[[Fixture], FixtureState]
 
 
+def _calculate_fade(
+    t: float, duration: float | None, fade_in: float, fade_out: float
+) -> float:
+    """Calculate fade multiplier for time t."""
+    if fade_in > 0 and t < fade_in:
+        return t / fade_in
+    if duration is not None and fade_out > 0:
+        time_remaining = duration - t
+        if time_remaining < fade_out:
+            return max(0.0, time_remaining / fade_out)
+    return 1.0
+
+
 @dataclass
 class SceneClip:
     """Static scene with optional fade in/out.
@@ -50,14 +63,7 @@ class SceneClip:
         if t < 0 or (self.clip_duration is not None and t > self.clip_duration):
             return {}
 
-        fade_mult = 1.0
-        if self.fade_in > 0 and t < self.fade_in:
-            fade_mult = t / self.fade_in
-        elif self.clip_duration is not None and self.fade_out > 0:
-            time_remaining = self.clip_duration - t
-            if time_remaining < self.fade_out:
-                fade_mult = max(0.0, time_remaining / self.fade_out)
-
+        fade_mult = _calculate_fade(t, self.clip_duration, self.fade_in, self.fade_out)
         selector_fn = self.selector if callable(self.selector) else lambda r: self.selector
         params_fn = self.params if callable(self.params) else lambda f: self.params
 
@@ -129,14 +135,7 @@ class EffectClip:
         if t < 0 or (self.clip_duration is not None and t > self.clip_duration):
             return {}
 
-        fade_mult = 1.0
-        if self.fade_in > 0 and t < self.fade_in:
-            fade_mult = t / self.fade_in
-        elif self.clip_duration is not None and self.fade_out > 0:
-            time_remaining = self.clip_duration - t
-            if time_remaining < self.fade_out:
-                fade_mult = max(0.0, time_remaining / self.fade_out)
-
+        fade_mult = _calculate_fade(t, self.clip_duration, self.fade_in, self.fade_out)
         selector_fn = self.selector if callable(self.selector) else lambda r: self.selector
 
         result: dict[Fixture, FixtureDelta] = {}
@@ -149,13 +148,10 @@ class EffectClip:
 
                 for name, value in state.items():
                     if name == "dimmer":
-                        # Dimmer is fixture-level (only set on first segment)
                         if seg == 0:
                             delta[name] = (self.blend_op, value * fade_mult)
                     elif name == "color" and segment_count > 1:
-                        # Map color to segment-indexed key for multi-segment fixtures
-                        key = f"color_{seg}"
-                        delta[key] = (self.blend_op, value)
+                        delta[f"color_{seg}"] = (self.blend_op, value)
                     else:
                         delta[name] = (self.blend_op, value)
 

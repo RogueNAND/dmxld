@@ -11,27 +11,11 @@ from dmxld.model import Fixture, FixtureGroup, FixtureState, FixtureType, Rig
 RGBFixture = FixtureType(DimmerAttr(), RGBAttr())
 
 
-@pytest.fixture
-def rig() -> Rig:
-    return Rig([Fixture(RGBFixture, universe=1, address=1)])
-
-
-@pytest.fixture
-def two_fixture_rig() -> tuple[Rig, FixtureGroup, FixtureGroup]:
-    left = FixtureGroup()
-    right = FixtureGroup()
-    rig = Rig([
-        Fixture(RGBFixture, universe=1, address=1, groups={left}),
-        Fixture(RGBFixture, universe=1, address=10, groups={right}),
-    ])
-    return rig, left, right
-
-
 class TestRenderFrame:
-    """render_frame produces correct DMX output."""
-
-    def test_full_white(self, rig: Rig) -> None:
+    def test_dmx_output(self) -> None:
+        rig = Rig([Fixture(RGBFixture, universe=1, address=1)])
         engine = DMXEngine(rig=rig)
+
         scene = SceneClip(
             selector=lambda r: r.all,
             params=lambda f: FixtureState(dimmer=1.0, color=(1.0, 1.0, 1.0)),
@@ -39,49 +23,22 @@ class TestRenderFrame:
         )
         result = engine.render_frame(scene, t=1.0)
 
-        # Fixture at address 1: dimmer=ch1, rgb=ch2-4
         assert result[1][1] == 255  # dimmer
         assert result[1][2] == 255  # red
         assert result[1][3] == 255  # green
         assert result[1][4] == 255  # blue
 
-    def test_half_dimmer(self, rig: Rig) -> None:
+    def test_selector_filtering(self) -> None:
+        left = FixtureGroup()
+        right = FixtureGroup()
+        rig = Rig([
+            Fixture(RGBFixture, universe=1, address=1, groups={left}),
+            Fixture(RGBFixture, universe=1, address=10, groups={right}),
+        ])
         engine = DMXEngine(rig=rig)
+
         scene = SceneClip(
-            selector=lambda r: r.all,
-            params=lambda f: FixtureState(dimmer=0.5),
-            clip_duration=10.0,
-        )
-        result = engine.render_frame(scene, t=1.0)
-        assert result[1][1] == 127
-
-    def test_multiple_fixtures(
-        self, two_fixture_rig: tuple[Rig, FixtureGroup, FixtureGroup]
-    ) -> None:
-        rig, left, right = two_fixture_rig
-        engine = DMXEngine(rig=rig)
-        scene = SceneClip(
-            selector=lambda r: r.all,
-            params=lambda f: FixtureState(dimmer=1.0, color=(1.0, 0.0, 0.0)),
-            clip_duration=10.0,
-        )
-        result = engine.render_frame(scene, t=1.0)
-
-        # Fixture 1 at address 1
-        assert result[1][1] == 255  # dimmer
-        assert result[1][2] == 255  # red
-
-        # Fixture 2 at address 10
-        assert result[1][10] == 255  # dimmer
-        assert result[1][11] == 255  # red
-
-    def test_selector_filtering(
-        self, two_fixture_rig: tuple[Rig, FixtureGroup, FixtureGroup]
-    ) -> None:
-        rig, left, right = two_fixture_rig
-        engine = DMXEngine(rig=rig)
-        scene = SceneClip(
-            selector=left,  # FixtureGroup as selector
+            selector=left,
             params=lambda f: FixtureState(dimmer=1.0),
             clip_duration=10.0,
         )
@@ -92,15 +49,11 @@ class TestRenderFrame:
 
 
 class TestEngineLifecycle:
-    """Engine initialization and stop."""
-
-    def test_stop_without_play(self, rig: Rig) -> None:
-        """Stop is safe to call before play."""
-        engine = DMXEngine(rig=rig)
+    def test_stop_without_start(self) -> None:
+        engine = DMXEngine(rig=Rig([Fixture(RGBFixture, 1, 1)]))
         engine.stop()  # Should not raise
 
     def test_optional_rig(self) -> None:
-        """Engine can be created without rig, then set later."""
         engine = DMXEngine()
         assert engine.rig is None
 

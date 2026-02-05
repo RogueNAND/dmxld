@@ -5,7 +5,6 @@ from dmxld.model import (
     FixtureState,
     FixtureType,
     Fixture,
-    FixtureContext,
     FixtureGroup,
     Rig,
 )
@@ -41,7 +40,6 @@ __all__ = [
     "FixtureState",
     "FixtureType",
     "Fixture",
-    "FixtureContext",
     "FixtureGroup",
     "Rig",
     # Blend

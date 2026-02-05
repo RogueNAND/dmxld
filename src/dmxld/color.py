@@ -193,7 +193,7 @@ def rgb_to_rgba(r: float, g: float, b: float) -> tuple[float, float, float, floa
     else:
         amber = 0.0
 
-    amber = min(amber, 1.0 - b)  # Reduce amber for cooler colors
+    amber = min(amber, 1.0 - b)
     amber = max(0.0, amber)
 
     r_out = max(0.0, r - amber)

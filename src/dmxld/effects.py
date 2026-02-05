@@ -4,17 +4,14 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Callable, Iterable
+from typing import TYPE_CHECKING, Iterable
 
-from dmxld.clips import EffectClip
+from dmxld.clips import EffectClip, Selector
 from dmxld.color import Color
 from dmxld.model import Fixture, FixtureState
 
 if TYPE_CHECKING:
-    from dmxld.model import FixtureGroup, Rig
-
-# Selector type
-Selector = Callable[["Rig"], Iterable[Fixture]]
+    from dmxld.model import FixtureGroup
 
 
 class EffectTemplate:
@@ -131,7 +128,6 @@ class Chase(EffectTemplate):
     def render_params(self, t: float, f: Fixture, i: int, seg: int) -> FixtureState:
         position = (t * self.speed) % self.fixture_count
         distance = abs(i - position)
-        # Wrap around
         distance = min(distance, self.fixture_count - distance)
         value = max(0.0, 1.0 - distance / self.width)
         return FixtureState(dimmer=value)

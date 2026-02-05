@@ -236,7 +236,7 @@ class PanAttr:
 
     @property
     def default_value(self) -> float:
-        return 0.5  # Center position
+        return 0.5
 
     def encode(self, value: float) -> list[int]:
         if self.fine:
@@ -258,7 +258,7 @@ class TiltAttr:
 
     @property
     def default_value(self) -> float:
-        return 0.5  # Center position
+        return 0.5
 
     def encode(self, value: float) -> list[int]:
         if self.fine:
@@ -279,7 +279,7 @@ class GoboAttr:
 
     @property
     def default_value(self) -> float:
-        return 0.0  # Open/no gobo
+        return 0.0
 
     def encode(self, value: float) -> list[int]:
         return [_to_dmx(value)]

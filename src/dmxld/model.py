@@ -3,13 +3,22 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, Iterator, Protocol
+from typing import Any, Iterator, Protocol
 from weakref import WeakSet
 
 from dmxld.color import Raw
 
-if TYPE_CHECKING:
-    from dmxld.model import Fixture, Rig
+
+def _resolve_color_value(color_value: object, attr: Attribute) -> tuple[float, ...]:
+    """Resolve a color value, applying conversion unless Raw() wrapped."""
+    if color_value is None:
+        return attr.default_value
+    if isinstance(color_value, Raw):
+        return tuple(color_value)
+    if hasattr(attr, "convert"):
+        return attr.convert(color_value)
+    return color_value
+
 
 
 class FixtureGroup:
@@ -159,28 +168,12 @@ class FixtureType:
             segments = getattr(attr, "segments", 1)
 
             if segments > 1 and attr.name == "color":
-                # Segmented color attribute - encode each segment
+                # Segmented color attribute
                 base_channels = attr.channel_count // segments
                 for seg in range(segments):
                     seg_key = f"color_{seg}"
-
-                    # Get value: segment-specific or unified fallback
-                    if seg_key in state:
-                        color_value = state[seg_key]
-                    elif "color" in state:
-                        color_value = state["color"]
-                    else:
-                        color_value = None
-
-                    # Convert unless Raw() wrapped
-                    if color_value is None:
-                        value = attr.default_value
-                    elif isinstance(color_value, Raw):
-                        value = tuple(color_value)
-                    elif hasattr(attr, "convert"):
-                        value = attr.convert(color_value)
-                    else:
-                        value = color_value
+                    color_value = state.get(seg_key) or state.get("color")
+                    value = _resolve_color_value(color_value, attr)
 
                     dmx_bytes = attr.encode(value)
                     for i, byte in enumerate(dmx_bytes[:base_channels]):
@@ -188,18 +181,7 @@ class FixtureType:
                     offset += base_channels
 
             elif attr.name == "color":
-                # Non-segmented color attribute
-                if "color" in state:
-                    color_value = state["color"]
-                    if isinstance(color_value, Raw):
-                        value = tuple(color_value)
-                    elif hasattr(attr, "convert"):
-                        value = attr.convert(color_value)
-                    else:
-                        value = color_value
-                else:
-                    value = attr.default_value
-
+                value = _resolve_color_value(state.get("color"), attr)
                 dmx_bytes = attr.encode(value)
                 for i, byte in enumerate(dmx_bytes):
                     result[offset + i] = byte
@@ -214,19 +196,6 @@ class FixtureType:
                 offset += attr.channel_count
 
         return result
-
-
-class FixtureContext:
-    """Context manager that collects fixtures created within its scope."""
-
-    def __init__(self) -> None:
-        self.fixtures: list[Fixture] = []
-
-    def __enter__(self) -> FixtureContext:
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        pass
 
 
 @dataclass
