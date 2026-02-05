@@ -45,14 +45,13 @@ class RGBAttr:
     """3-channel RGB color attribute.
 
     Responds to unified "color" key with automatic conversion from any color format.
-    Use "raw_rgb" key to bypass conversion and set RGB values directly.
+    Use Raw() wrapper to bypass conversion and set values directly.
 
     Args:
         segments: Number of independent RGB segments. Each segment adds 3 channels.
     """
 
     name: str = "color"
-    raw_name: str = "raw_rgb"
     strategy: ColorStrategy | None = None
     segments: int = 1
 
@@ -86,14 +85,13 @@ class RGBWAttr:
     """4-channel RGBW color attribute.
 
     Responds to unified "color" key with automatic conversion from RGB.
-    Use "raw_rgbw" key to bypass conversion and set RGBW values directly.
+    Use Raw() wrapper to bypass conversion and set values directly.
 
     Args:
         segments: Number of independent RGBW segments. Each segment adds 4 channels.
     """
 
     name: str = "color"
-    raw_name: str = "raw_rgbw"
     strategy: ColorStrategy | None = None
     segments: int = 1
 
@@ -126,14 +124,13 @@ class RGBAAttr:
     """4-channel RGBA (Red, Green, Blue, Amber) color attribute.
 
     Responds to unified "color" key with automatic conversion from RGB.
-    Use "raw_rgba" key to bypass conversion and set RGBA values directly.
+    Use Raw() wrapper to bypass conversion and set values directly.
 
     Args:
         segments: Number of independent RGBA segments. Each segment adds 4 channels.
     """
 
     name: str = "color"
-    raw_name: str = "raw_rgba"
     strategy: ColorStrategy | None = None
     segments: int = 1
 
@@ -166,14 +163,13 @@ class RGBAWAttr:
     """5-channel RGBAW (Red, Green, Blue, Amber, White) color attribute.
 
     Responds to unified "color" key with automatic conversion from RGB.
-    Use "raw_rgbaw" key to bypass conversion and set RGBAW values directly.
+    Use Raw() wrapper to bypass conversion and set values directly.
 
     Args:
         segments: Number of independent RGBAW segments. Each segment adds 5 channels.
     """
 
     name: str = "color"
-    raw_name: str = "raw_rgbaw"
     strategy: ColorStrategy | None = None
     segments: int = 1
 

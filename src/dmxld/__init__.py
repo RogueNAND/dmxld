@@ -33,7 +33,7 @@ from dmxld.attributes import (
 )
 
 # Color
-from dmxld.color import Color, rgb, set_color_strategy
+from dmxld.color import Color, Raw, rgb, set_color_strategy
 
 __all__ = [
     # Model
@@ -69,6 +69,7 @@ __all__ = [
     "SkipAttr",
     # Color
     "Color",
+    "Raw",
     "rgb",
     "set_color_strategy",
 ]

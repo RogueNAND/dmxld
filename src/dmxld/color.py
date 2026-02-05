@@ -295,3 +295,33 @@ class Color(tuple[float, ...]):
 def rgb(r: float, g: float, b: float) -> Color:
     """Create an RGB color."""
     return Color(r, g, b)
+
+
+# -----------------------------------------------------------------------------
+# Raw Color Marker
+# -----------------------------------------------------------------------------
+
+
+class Raw(tuple[float, ...]):
+    """Marker for raw color values that bypass conversion.
+
+    Use this when you want to send exact channel values to a fixture
+    without any automatic RGB→RGBW or similar conversion.
+
+    Examples:
+        # Direct RGBW values (no conversion)
+        FixtureState(color=Raw(1.0, 0.0, 0.0, 0.5))
+
+        # Per-segment raw values
+        FixtureState(color_0=Raw(0.5, 0.0, 0.0, 0.0), color_1=(1.0, 0.0, 0.0))
+
+        # Compare to normal usage (conversion applied):
+        FixtureState(color=(1.0, 0.0, 0.0))  # RGB → converted to fixture's format
+    """
+
+    def __new__(cls, *values: float) -> Raw:
+        return super().__new__(cls, values)
+
+    def __repr__(self) -> str:
+        values = ", ".join(f"{v}" for v in self)
+        return f"Raw({values})"

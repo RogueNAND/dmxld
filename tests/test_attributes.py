@@ -50,7 +50,6 @@ class TestRGBAttr:
     def test_unified_name(self) -> None:
         attr = RGBAttr()
         assert attr.name == "color"
-        assert attr.raw_name == "raw_rgb"
 
     def test_convert_from_rgb(self) -> None:
         attr = RGBAttr()
@@ -81,7 +80,6 @@ class TestRGBWAttr:
     def test_unified_name(self) -> None:
         attr = RGBWAttr()
         assert attr.name == "color"
-        assert attr.raw_name == "raw_rgbw"
 
     def test_convert_from_rgb(self) -> None:
         attr = RGBWAttr()
@@ -126,7 +124,6 @@ class TestRGBAAttr:
     def test_unified_name(self) -> None:
         attr = RGBAAttr()
         assert attr.name == "color"
-        assert attr.raw_name == "raw_rgba"
 
     def test_convert_from_rgb(self) -> None:
         attr = RGBAAttr()
@@ -147,7 +144,6 @@ class TestRGBAWAttr:
     def test_unified_name(self) -> None:
         attr = RGBAWAttr()
         assert attr.name == "color"
-        assert attr.raw_name == "raw_rgbaw"
 
 
 class TestPanTiltAttr:

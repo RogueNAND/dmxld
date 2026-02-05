@@ -6,6 +6,8 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Iterator, Protocol
 from weakref import WeakSet
 
+from dmxld.color import Raw
+
 if TYPE_CHECKING:
     from dmxld.model import Fixture, Rig
 
@@ -142,72 +144,59 @@ class FixtureType:
     def encode(self, state: FixtureState) -> dict[int, int]:
         """Encode state to DMX values (0-255).
 
-        For color attributes, the priority is:
-        1. raw_* key (e.g., raw_rgb, raw_rgbw) - explicit, no conversion
-        2. color key - automatic conversion via attr.convert()
-        3. default_value - if no color specified
+        For color attributes:
+        - Raw() wrapped values bypass conversion
+        - Plain tuples/Color objects are converted via attr.convert()
 
         For segmented color attributes (segments > 1):
-        1. raw_*_N key (e.g., raw_rgbw_0) - explicit per-segment
-        2. color_N key (e.g., color_0) - per-segment with conversion
-        3. color key - same color for all segments (with conversion)
-        4. default_value - if no color specified
+        - color_N keys (e.g., color_0, color_1) for per-segment values
+        - color key applies same value to all segments
         """
         result: dict[int, int] = {}
         offset = 0
+
         for attr in self.attributes:
             segments = getattr(attr, "segments", 1)
-            raw_name = getattr(attr, "raw_name", None)
 
             if segments > 1 and attr.name == "color":
                 # Segmented color attribute - encode each segment
                 base_channels = attr.channel_count // segments
                 for seg in range(segments):
-                    value = None
-                    seg_raw_key = f"{raw_name}_{seg}" if raw_name else None
                     seg_key = f"color_{seg}"
 
-                    # Check for segment-specific raw key
-                    if seg_raw_key and seg_raw_key in state:
-                        value = state[seg_raw_key]
-                    # Check for segment-specific color key
-                    elif seg_key in state:
+                    # Get value: segment-specific or unified fallback
+                    if seg_key in state:
                         color_value = state[seg_key]
-                        if hasattr(attr, "convert"):
-                            value = attr.convert(color_value)
-                        else:
-                            value = color_value
-                    # Fall back to unified color key (same for all segments)
                     elif "color" in state:
                         color_value = state["color"]
-                        if hasattr(attr, "convert"):
-                            value = attr.convert(color_value)
-                        else:
-                            value = color_value
                     else:
+                        color_value = None
+
+                    # Convert unless Raw() wrapped
+                    if color_value is None:
                         value = attr.default_value
+                    elif isinstance(color_value, Raw):
+                        value = tuple(color_value)
+                    elif hasattr(attr, "convert"):
+                        value = attr.convert(color_value)
+                    else:
+                        value = color_value
 
                     dmx_bytes = attr.encode(value)
                     for i, byte in enumerate(dmx_bytes[:base_channels]):
                         result[offset + i] = byte
                     offset += base_channels
-            else:
-                # Non-segmented attribute (original logic)
-                value = None
 
-                # Check for raw_* key first (bypass conversion)
-                if raw_name and raw_name in state:
-                    value = state[raw_name]
-                # Check for color key with conversion
-                elif attr.name == "color" and "color" in state:
+            elif attr.name == "color":
+                # Non-segmented color attribute
+                if "color" in state:
                     color_value = state["color"]
-                    if hasattr(attr, "convert"):
+                    if isinstance(color_value, Raw):
+                        value = tuple(color_value)
+                    elif hasattr(attr, "convert"):
                         value = attr.convert(color_value)
                     else:
                         value = color_value
-                # Fall back to attribute name or default
-                elif attr.name in state:
-                    value = state[attr.name]
                 else:
                     value = attr.default_value
 
@@ -215,6 +204,15 @@ class FixtureType:
                 for i, byte in enumerate(dmx_bytes):
                     result[offset + i] = byte
                 offset += attr.channel_count
+
+            else:
+                # Non-color attribute
+                value = state.get(attr.name, attr.default_value)
+                dmx_bytes = attr.encode(value)
+                for i, byte in enumerate(dmx_bytes):
+                    result[offset + i] = byte
+                offset += attr.channel_count
+
         return result
 
 

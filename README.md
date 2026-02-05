@@ -215,8 +215,9 @@ state = FixtureState(dimmer=1.0, color=(1.0, 0.5, 0.0))  # Orange
 color = Color.from_hsv(h=0.0, s=1.0, v=1.0)  # Red
 state = FixtureState(dimmer=1.0, color=color)
 
-# Bypass conversion with raw_* keys
-state = FixtureState(dimmer=1.0, raw_rgbw=(0.5, 0.5, 0.5, 0.5))
+# Bypass conversion with Raw() wrapper
+from dmxld import Raw
+state = FixtureState(dimmer=1.0, color=Raw(0.5, 0.5, 0.5, 0.5))  # Exact RGBW values
 ```
 
 Control white extraction strategy:
@@ -241,5 +242,36 @@ f = RGBPar(universe=1, address=5, pos=Vec3(x=0.0, y=2.0, z=0.0))
 # Use in effects
 params=lambda t, f, i, seg: FixtureState(
     dimmer=0.5 + 0.5 * math.sin(t + f.pos.x)
+)
+```
+
+### Multi-Segment Fixtures
+
+For fixtures with multiple color zones (LED bars, pixel strips):
+
+```python
+from dmxld import FixtureType, DimmerAttr, RGBWAttr, Raw
+
+# LED bar with 4 independent RGBW segments (17 channels total)
+LEDBar = FixtureType(DimmerAttr(), RGBWAttr(segments=4))
+
+fixture = LEDBar(universe=1, address=1)
+print(fixture.segment_count)  # 4
+```
+
+Effects receive a `seg` parameter (0 to segment_count-1):
+
+```python
+# Rainbow spread across segments
+def rainbow_params(t, f, i, seg):
+    hue = (t * 0.5 + seg / f.segment_count) % 1.0
+    return FixtureState(dimmer=1.0, color=Color.from_hsv(hue, 1.0, 1.0))
+
+# Per-segment control in FixtureState
+state = FixtureState(
+    dimmer=1.0,
+    color_0=(1.0, 0.0, 0.0),  # Segment 0: red
+    color_1=(0.0, 1.0, 0.0),  # Segment 1: green
+    color_2=Raw(0.0, 0.0, 1.0, 0.5),  # Segment 2: direct RGBW
 )
 ```

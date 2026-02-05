@@ -4,6 +4,7 @@ import pytest
 
 from dmxld.model import Fixture, FixtureGroup, FixtureState, FixtureType, Rig, Vec3
 from dmxld.attributes import DimmerAttr, RGBAttr
+from dmxld.color import Raw
 
 
 RGBDimmer = FixtureType(DimmerAttr(), RGBAttr())
@@ -270,13 +271,13 @@ class TestSegmentedFixtures:
         assert seg1 != seg2
         assert seg2 != seg3
 
-    def test_encode_segmented_with_raw_keys(self) -> None:
-        """Raw segment keys bypass conversion."""
+    def test_encode_segmented_with_raw(self) -> None:
+        """Raw() wrapped values bypass conversion."""
         LEDBar = FixtureType(DimmerAttr(), RGBWAttr(segments=2))
         state = FixtureState(
             dimmer=1.0,
-            raw_rgbw_0=(0.5, 0.0, 0.0, 0.0),
-            raw_rgbw_1=(0.0, 0.5, 0.0, 0.0),
+            color_0=Raw(0.5, 0.0, 0.0, 0.0),
+            color_1=Raw(0.0, 0.5, 0.0, 0.0),
         )
         encoded = LEDBar.encode(state)
 

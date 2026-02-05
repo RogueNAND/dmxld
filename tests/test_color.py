@@ -330,11 +330,11 @@ class TestUnifiedColorKey:
         assert encoded[3] == 0    # blue
         assert encoded[4] == 0    # white (no white component)
 
-    def test_raw_rgbw_bypasses_conversion(self) -> None:
-        from dmxld import FixtureType, DimmerAttr, RGBWAttr, FixtureState
+    def test_raw_bypasses_conversion(self) -> None:
+        from dmxld import FixtureType, DimmerAttr, RGBWAttr, FixtureState, Raw
 
         ft = FixtureType(DimmerAttr(), RGBWAttr())
-        state = FixtureState(dimmer=1.0, raw_rgbw=(0.5, 0.5, 0.5, 0.5))
+        state = FixtureState(dimmer=1.0, color=Raw(0.5, 0.5, 0.5, 0.5))
         encoded = ft.encode(state)
         assert encoded[0] == 255  # dimmer
         assert encoded[1] == 127  # red
