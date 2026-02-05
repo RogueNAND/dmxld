@@ -68,20 +68,38 @@ class FixtureGroup:
     def __or__(self, other: FixtureGroup) -> FixtureGroup:
         """Union of two groups."""
         result = FixtureGroup()
-        for f in self._fixtures:
-            result._fixtures.add(f)
-        for f in other._fixtures:
-            result._fixtures.add(f)
+        result._fixtures.update(self._fixtures | other._fixtures)
         return result
 
     def __and__(self, other: FixtureGroup) -> FixtureGroup:
         """Intersection of two groups."""
         result = FixtureGroup()
-        other_set = set(other._fixtures)
-        for f in self._fixtures:
-            if f in other_set:
-                result._fixtures.add(f)
+        result._fixtures.update(self._fixtures & other._fixtures)
         return result
+
+    def __add__(self, other: FixtureGroup) -> FixtureGroup:
+        """Union of two groups (alias for |)."""
+        return self | other
+
+    def __sub__(self, other: FixtureGroup) -> FixtureGroup:
+        """Difference of two groups (fixtures in self but not in other)."""
+        result = FixtureGroup()
+        result._fixtures.update(self._fixtures - other._fixtures)
+        return result
+
+    def __xor__(self, other: FixtureGroup) -> FixtureGroup:
+        """Symmetric difference (fixtures in either but not both)."""
+        result = FixtureGroup()
+        result._fixtures.update(self._fixtures ^ other._fixtures)
+        return result
+
+    def __contains__(self, fixture: Fixture) -> bool:
+        """Check if a fixture is in this group."""
+        return fixture in self._fixtures
+
+    def __bool__(self) -> bool:
+        """True if group has any fixtures."""
+        return len(self._fixtures) > 0
 
     def __repr__(self) -> str:
         return f"FixtureGroup({len(self._fixtures)} fixtures)"

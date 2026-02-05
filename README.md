@@ -53,11 +53,19 @@ engine.stop()
 
 ## Selectors
 
-Groups work as selectors. Combine them with `|` (union) or `&` (intersection):
+Groups work as selectors. Combine them with set operations:
 
 ```python
-SceneClip(selector=front | back, ...)   # All fixtures in either group
-SceneClip(selector=front & back, ...)   # Fixtures in both groups
+front | back      # Union (fixtures in either)
+front & back      # Intersection (fixtures in both)
+front + back      # Union (alias for |)
+front - back      # Difference (in front but not back)
+front ^ back      # Symmetric difference (in one but not both)
+
+fixture in front  # Membership test
+if front:         # True if non-empty
+
+SceneClip(selector=front | back, ...)
 SceneClip(selector=lambda r: r.all, ...)  # All fixtures in rig
 ```
 
