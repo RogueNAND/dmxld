@@ -202,3 +202,92 @@ class TestRigOverlapDetection:
             Fixture(RGBDimmer, 2, 1),  # same address, different universe
         ])
         assert len(rig.all) == 2
+
+
+from dmxld.attributes import RGBWAttr
+
+
+class TestSegmentedFixtures:
+    """Multi-segment fixture support."""
+
+    def test_segmented_channel_count(self) -> None:
+        """Segmented attribute multiplies channel count."""
+        # 1 dimmer + 4 RGBW segments (4 channels each) = 17 channels
+        LEDBar = FixtureType(DimmerAttr(), RGBWAttr(segments=4))
+        assert LEDBar.channel_count == 17
+
+    def test_fixture_segment_count(self) -> None:
+        """Fixture reports segment count from its type."""
+        LEDBar = FixtureType(DimmerAttr(), RGBWAttr(segments=4))
+        fixture = Fixture(LEDBar, universe=1, address=1)
+        assert fixture.segment_count == 4
+
+    def test_non_segmented_fixture_count(self) -> None:
+        """Non-segmented fixtures report segment_count=1."""
+        fixture = Fixture(RGBDimmer, universe=1, address=1)
+        assert fixture.segment_count == 1
+
+    def test_encode_segmented_with_unified_color(self) -> None:
+        """Single color applied to all segments."""
+        LEDBar = FixtureType(DimmerAttr(), RGBWAttr(segments=4))
+        state = FixtureState(dimmer=1.0, color=(1.0, 0.0, 0.0))
+        encoded = LEDBar.encode(state)
+
+        # dimmer at offset 0
+        assert encoded[0] == 255
+        # Same color (red -> RGBW) for all 4 segments
+        # RGBW conversion of pure red: (1.0, 0.0, 0.0) -> some RGBW values
+        # All segments should be identical
+        seg0 = [encoded[1], encoded[2], encoded[3], encoded[4]]
+        seg1 = [encoded[5], encoded[6], encoded[7], encoded[8]]
+        seg2 = [encoded[9], encoded[10], encoded[11], encoded[12]]
+        seg3 = [encoded[13], encoded[14], encoded[15], encoded[16]]
+        assert seg0 == seg1 == seg2 == seg3
+
+    def test_encode_segmented_with_per_segment_colors(self) -> None:
+        """Different colors per segment using indexed keys."""
+        LEDBar = FixtureType(DimmerAttr(), RGBWAttr(segments=4))
+        state = FixtureState(
+            dimmer=1.0,
+            color_0=(1.0, 0.0, 0.0),  # red
+            color_1=(0.0, 1.0, 0.0),  # green
+            color_2=(0.0, 0.0, 1.0),  # blue
+            color_3=(1.0, 1.0, 1.0),  # white
+        )
+        encoded = LEDBar.encode(state)
+
+        # dimmer at offset 0
+        assert encoded[0] == 255
+
+        # Segment colors should be different
+        seg0 = [encoded[1], encoded[2], encoded[3], encoded[4]]
+        seg1 = [encoded[5], encoded[6], encoded[7], encoded[8]]
+        seg2 = [encoded[9], encoded[10], encoded[11], encoded[12]]
+        seg3 = [encoded[13], encoded[14], encoded[15], encoded[16]]
+
+        # Verify they're not all the same
+        assert seg0 != seg1
+        assert seg1 != seg2
+        assert seg2 != seg3
+
+    def test_encode_segmented_with_raw_keys(self) -> None:
+        """Raw segment keys bypass conversion."""
+        LEDBar = FixtureType(DimmerAttr(), RGBWAttr(segments=2))
+        state = FixtureState(
+            dimmer=1.0,
+            raw_rgbw_0=(0.5, 0.0, 0.0, 0.0),
+            raw_rgbw_1=(0.0, 0.5, 0.0, 0.0),
+        )
+        encoded = LEDBar.encode(state)
+
+        # Segment 0: R=127, G=0, B=0, W=0
+        assert encoded[1] == 127
+        assert encoded[2] == 0
+        assert encoded[3] == 0
+        assert encoded[4] == 0
+
+        # Segment 1: R=0, G=127, B=0, W=0
+        assert encoded[5] == 0
+        assert encoded[6] == 127
+        assert encoded[7] == 0
+        assert encoded[8] == 0

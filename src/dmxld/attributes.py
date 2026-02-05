@@ -46,15 +46,19 @@ class RGBAttr:
 
     Responds to unified "color" key with automatic conversion from any color format.
     Use "raw_rgb" key to bypass conversion and set RGB values directly.
+
+    Args:
+        segments: Number of independent RGB segments. Each segment adds 3 channels.
     """
 
     name: str = "color"
     raw_name: str = "raw_rgb"
     strategy: ColorStrategy | None = None
+    segments: int = 1
 
     @property
     def channel_count(self) -> int:
-        return 3
+        return 3 * self.segments
 
     @property
     def default_value(self) -> tuple[float, float, float]:
@@ -83,15 +87,19 @@ class RGBWAttr:
 
     Responds to unified "color" key with automatic conversion from RGB.
     Use "raw_rgbw" key to bypass conversion and set RGBW values directly.
+
+    Args:
+        segments: Number of independent RGBW segments. Each segment adds 4 channels.
     """
 
     name: str = "color"
     raw_name: str = "raw_rgbw"
     strategy: ColorStrategy | None = None
+    segments: int = 1
 
     @property
     def channel_count(self) -> int:
-        return 4
+        return 4 * self.segments
 
     @property
     def default_value(self) -> tuple[float, float, float, float]:
@@ -119,15 +127,19 @@ class RGBAAttr:
 
     Responds to unified "color" key with automatic conversion from RGB.
     Use "raw_rgba" key to bypass conversion and set RGBA values directly.
+
+    Args:
+        segments: Number of independent RGBA segments. Each segment adds 4 channels.
     """
 
     name: str = "color"
     raw_name: str = "raw_rgba"
     strategy: ColorStrategy | None = None
+    segments: int = 1
 
     @property
     def channel_count(self) -> int:
-        return 4
+        return 4 * self.segments
 
     @property
     def default_value(self) -> tuple[float, float, float, float]:
@@ -155,15 +167,19 @@ class RGBAWAttr:
 
     Responds to unified "color" key with automatic conversion from RGB.
     Use "raw_rgbaw" key to bypass conversion and set RGBAW values directly.
+
+    Args:
+        segments: Number of independent RGBAW segments. Each segment adds 5 channels.
     """
 
     name: str = "color"
     raw_name: str = "raw_rgbaw"
     strategy: ColorStrategy | None = None
+    segments: int = 1
 
     @property
     def channel_count(self) -> int:
-        return 5
+        return 5 * self.segments
 
     @property
     def default_value(self) -> tuple[float, float, float, float, float]:

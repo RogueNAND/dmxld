@@ -74,16 +74,20 @@ class SceneClip:
         return result
 
 
-# Type for effect params function: (t, fixture, index) -> FixtureState
-EffectParamsFn = Callable[[float, Fixture, int], FixtureState]
+# Type for effect params function: (t, fixture, index, segment) -> FixtureState
+EffectParamsFn = Callable[[float, Fixture, int, int], FixtureState]
 
 
 @dataclass
 class EffectClip:
-    """Math-driven effect with access to time, fixture, and index.
+    """Math-driven effect with access to time, fixture, index, and segment.
 
-    The params function receives (t, fixture, index) allowing per-fixture
-    effects based on time, position, or iteration order.
+    The params function receives (t, fixture, index, segment) allowing per-fixture
+    and per-segment effects based on time, position, or iteration order.
+
+    For segmented fixtures (e.g., LED bars with multiple color zones), the params
+    function is called once per segment. The segment index can be used to create
+    per-segment animations. Non-segmented fixtures always have segment=0.
 
     Args:
         blend_op: How to combine with other clips (SET overwrites, MUL multiplies,
@@ -93,21 +97,20 @@ class EffectClip:
     Example - color wave across fixtures by X position:
         EffectClip(
             selector=lambda r: r.all,
-            params=lambda t, f, i: FixtureState(
+            params=lambda t, f, i, seg: FixtureState(
                 dimmer=1.0,
-                rgb=hsv_to_rgb((t * 0.2 + f.pos.x * 0.1) % 1.0, 1.0, 1.0)
+                color=Color.from_hsv((t * 0.2 + f.pos.x * 0.1) % 1.0, 1.0, 1.0)
             ),
             clip_duration=10.0,
         )
 
-    Example - dimmer pulse layered on top (using MUL):
+    Example - rainbow across segments:
         EffectClip(
             selector=lambda r: r.all,
-            params=lambda t, f, i: FixtureState(
-                dimmer=0.5 + 0.5 * math.sin(t * 2 * math.pi)
+            params=lambda t, f, i, seg: FixtureState(
+                color=Color.from_hsv((t + seg * 0.25) % 1.0, 1.0, 1.0)
             ),
             clip_duration=10.0,
-            blend_op=BlendOp.MUL,
         )
     """
 
@@ -138,12 +141,23 @@ class EffectClip:
 
         result: dict[Fixture, FixtureDelta] = {}
         for idx, fixture in enumerate(selector_fn(rig)):
-            state = self.params(t, fixture, idx)
             delta = FixtureDelta()
-            for name, value in state.items():
-                if name == "dimmer":
-                    delta[name] = (self.blend_op, value * fade_mult)
-                else:
-                    delta[name] = (self.blend_op, value)
+            segment_count = fixture.segment_count
+
+            for seg in range(segment_count):
+                state = self.params(t, fixture, idx, seg)
+
+                for name, value in state.items():
+                    if name == "dimmer":
+                        # Dimmer is fixture-level (only set on first segment)
+                        if seg == 0:
+                            delta[name] = (self.blend_op, value * fade_mult)
+                    elif name == "color" and segment_count > 1:
+                        # Map color to segment-indexed key for multi-segment fixtures
+                        key = f"color_{seg}"
+                        delta[key] = (self.blend_op, value)
+                    else:
+                        delta[name] = (self.blend_op, value)
+
             result[fixture] = delta
         return result

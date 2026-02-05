@@ -172,3 +172,41 @@ class TestSkipAttr:
         attr = SkipAttr(count=3)
         assert attr.channel_count == 3
         assert attr.encode(None) == [0, 0, 0]
+
+
+class TestSegmentedAttributes:
+    """Multi-segment attribute support."""
+
+    def test_rgb_segments_channel_count(self) -> None:
+        """RGBAttr segments multiplies channel count."""
+        attr = RGBAttr(segments=4)
+        assert attr.channel_count == 12  # 4 * 3
+
+    def test_rgbw_segments_channel_count(self) -> None:
+        """RGBWAttr segments multiplies channel count."""
+        attr = RGBWAttr(segments=4)
+        assert attr.channel_count == 16  # 4 * 4
+
+    def test_rgba_segments_channel_count(self) -> None:
+        """RGBAAttr segments multiplies channel count."""
+        attr = RGBAAttr(segments=2)
+        assert attr.channel_count == 8  # 2 * 4
+
+    def test_rgbaw_segments_channel_count(self) -> None:
+        """RGBAWAttr segments multiplies channel count."""
+        attr = RGBAWAttr(segments=3)
+        assert attr.channel_count == 15  # 3 * 5
+
+    def test_default_segments_is_one(self) -> None:
+        """Default segments is 1 (non-segmented)."""
+        assert RGBAttr().segments == 1
+        assert RGBWAttr().segments == 1
+        assert RGBAAttr().segments == 1
+        assert RGBAWAttr().segments == 1
+
+    def test_encode_still_returns_single_segment(self) -> None:
+        """encode() still returns single segment (encoding done at FixtureType level)."""
+        attr = RGBWAttr(segments=4)
+        # encode() only encodes one segment's worth of data
+        result = attr.encode((1.0, 0.5, 0.0, 0.25))
+        assert len(result) == 4  # Still 4 bytes for a single color

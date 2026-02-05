@@ -27,20 +27,21 @@ class EffectTemplate:
         class MyEffect(EffectTemplate):
             speed: float = 1.0
 
-            def render_params(self, t: float, f: Fixture, i: int) -> FixtureState:
+            def render_params(self, t: float, f: Fixture, i: int, seg: int) -> FixtureState:
                 return FixtureState(dimmer=math.sin(t * self.speed))
 
         # Usage
         clip = MyEffect(speed=2.0)(front, duration=10.0)
     """
 
-    def render_params(self, t: float, f: Fixture, i: int) -> FixtureState:
+    def render_params(self, t: float, f: Fixture, i: int, seg: int) -> FixtureState:
         """Override to define the effect behavior.
 
         Args:
             t: Time in seconds since clip start
             f: The fixture being rendered
             i: Index of the fixture in the selector order
+            seg: Segment index within the fixture (0 for non-segmented fixtures)
 
         Returns:
             FixtureState with the attribute values for this frame
@@ -105,7 +106,7 @@ class Pulse(EffectTemplate):
 
     rate: float = 1.0
 
-    def render_params(self, t: float, f: Fixture, i: int) -> FixtureState:
+    def render_params(self, t: float, f: Fixture, i: int, seg: int) -> FixtureState:
         value = 0.5 + 0.5 * math.sin(t * self.rate * 2 * math.pi)
         return FixtureState(dimmer=value)
 
@@ -127,7 +128,7 @@ class Chase(EffectTemplate):
     speed: float = 1.0
     width: float = 1.0
 
-    def render_params(self, t: float, f: Fixture, i: int) -> FixtureState:
+    def render_params(self, t: float, f: Fixture, i: int, seg: int) -> FixtureState:
         position = (t * self.speed) % self.fixture_count
         distance = abs(i - position)
         # Wrap around
@@ -151,8 +152,9 @@ class Rainbow(EffectTemplate):
     speed: float = 0.1
     saturation: float = 1.0
 
-    def render_params(self, t: float, f: Fixture, i: int) -> FixtureState:
-        hue = (t * self.speed + i * 0.1) % 1.0
+    def render_params(self, t: float, f: Fixture, i: int, seg: int) -> FixtureState:
+        # Phase by fixture index and segment for smooth rainbow across segments
+        hue = (t * self.speed + i * 0.1 + seg * 0.05) % 1.0
         color = Color.from_hsv(hue, self.saturation, 1.0)
         return FixtureState(dimmer=1.0, color=color)
 
@@ -172,7 +174,7 @@ class Strobe(EffectTemplate):
     rate: float = 10.0
     duty: float = 0.5
 
-    def render_params(self, t: float, f: Fixture, i: int) -> FixtureState:
+    def render_params(self, t: float, f: Fixture, i: int, seg: int) -> FixtureState:
         phase = (t * self.rate) % 1.0
         value = 1.0 if phase < self.duty else 0.0
         return FixtureState(dimmer=value)
@@ -193,7 +195,7 @@ class Wave(EffectTemplate):
     speed: float = 1.0
     wavelength: float = 4.0
 
-    def render_params(self, t: float, f: Fixture, i: int) -> FixtureState:
+    def render_params(self, t: float, f: Fixture, i: int, seg: int) -> FixtureState:
         phase = t * self.speed - i / self.wavelength
         value = 0.5 + 0.5 * math.sin(phase * 2 * math.pi)
         return FixtureState(dimmer=value)
@@ -214,7 +216,7 @@ class Solid(EffectTemplate):
     dimmer: float = 1.0
     color: tuple[float, float, float] | Color | None = None
 
-    def render_params(self, t: float, f: Fixture, i: int) -> FixtureState:
+    def render_params(self, t: float, f: Fixture, i: int, seg: int) -> FixtureState:
         state = FixtureState(dimmer=self.dimmer)
         if self.color is not None:
             state["color"] = self.color

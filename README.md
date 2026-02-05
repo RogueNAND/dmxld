@@ -76,7 +76,7 @@ clip = Solid(dimmer=0.8, color=(1.0, 0.5, 0.0))(front, duration=10.0)
 
 ## Custom Effects
 
-`EffectClip` gives you access to time `t`, fixture `f`, and index `i`:
+`EffectClip` gives you access to time `t`, fixture `f`, index `i`, and segment `seg`:
 
 ```python
 from dmxld import EffectClip
@@ -84,7 +84,7 @@ import math
 
 pulse = EffectClip(
     selector=front,
-    params=lambda t, f, i: FixtureState(
+    params=lambda t, f, i, seg: FixtureState(
         dimmer=0.5 + 0.5 * math.sin(t * 2 * math.pi),
         color=(1.0, 0.0, 0.0),
     ),
@@ -102,7 +102,7 @@ from dmxld.effects import EffectTemplate
 class Flicker(EffectTemplate):
     intensity: float = 0.3
 
-    def render_params(self, t: float, f, i: int) -> FixtureState:
+    def render_params(self, t: float, f, i: int, seg: int) -> FixtureState:
         import random
         return FixtureState(dimmer=1.0 - random.random() * self.intensity)
 
@@ -119,7 +119,7 @@ from dmxld import BlendOp
 # Dimmer modulation on top of another clip
 modifier = EffectClip(
     selector=front,
-    params=lambda t, f, i: FixtureState(dimmer=0.5 + 0.5 * math.sin(t * 2 * math.pi)),
+    params=lambda t, f, i, seg: FixtureState(dimmer=0.5 + 0.5 * math.sin(t * 2 * math.pi)),
     clip_duration=10.0,
     blend_op=BlendOp.MUL,  # Multiplies with existing value
 )
@@ -157,10 +157,10 @@ print(dmx_data)  # {1: {1: 255, 2: 255, 3: 0, 4: 0}}
 | Attribute | Channels | Notes |
 |-----------|----------|-------|
 | `DimmerAttr(fine=False)` | 1-2 | 8 or 16-bit |
-| `RGBAttr()` | 3 | Red, Green, Blue |
-| `RGBWAttr()` | 4 | Red, Green, Blue, White |
-| `RGBAAttr()` | 4 | Red, Green, Blue, Amber |
-| `RGBAWAttr()` | 5 | Red, Green, Blue, Amber, White |
+| `RGBAttr(segments=1)` | 3×n | Red, Green, Blue |
+| `RGBWAttr(segments=1)` | 4×n | Red, Green, Blue, White |
+| `RGBAAttr(segments=1)` | 4×n | Red, Green, Blue, Amber |
+| `RGBAWAttr(segments=1)` | 5×n | Red, Green, Blue, Amber, White |
 | `StrobeAttr()` | 1 | 0=off, 1=max |
 | `PanAttr(fine=False)` | 1-2 | 8 or 16-bit |
 | `TiltAttr(fine=False)` | 1-2 | 8 or 16-bit |
@@ -239,7 +239,7 @@ from dmxld import Vec3
 f = RGBPar(universe=1, address=5, pos=Vec3(x=0.0, y=2.0, z=0.0))
 
 # Use in effects
-params=lambda t, f, i: FixtureState(
+params=lambda t, f, i, seg: FixtureState(
     dimmer=0.5 + 0.5 * math.sin(t + f.pos.x)
 )
 ```

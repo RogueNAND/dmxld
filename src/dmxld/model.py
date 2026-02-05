@@ -146,34 +146,75 @@ class FixtureType:
         1. raw_* key (e.g., raw_rgb, raw_rgbw) - explicit, no conversion
         2. color key - automatic conversion via attr.convert()
         3. default_value - if no color specified
+
+        For segmented color attributes (segments > 1):
+        1. raw_*_N key (e.g., raw_rgbw_0) - explicit per-segment
+        2. color_N key (e.g., color_0) - per-segment with conversion
+        3. color key - same color for all segments (with conversion)
+        4. default_value - if no color specified
         """
         result: dict[int, int] = {}
         offset = 0
         for attr in self.attributes:
-            value = None
-
-            # Check for raw_* key first (bypass conversion)
+            segments = getattr(attr, "segments", 1)
             raw_name = getattr(attr, "raw_name", None)
-            if raw_name and raw_name in state:
-                value = state[raw_name]
-            # Check for color key with conversion
-            elif attr.name == "color" and "color" in state:
-                color_value = state["color"]
-                # Use convert() if available (color attributes)
-                if hasattr(attr, "convert"):
-                    value = attr.convert(color_value)
-                else:
-                    value = color_value
-            # Fall back to attribute name or default
-            elif attr.name in state:
-                value = state[attr.name]
-            else:
-                value = attr.default_value
 
-            dmx_bytes = attr.encode(value)
-            for i, byte in enumerate(dmx_bytes):
-                result[offset + i] = byte
-            offset += attr.channel_count
+            if segments > 1 and attr.name == "color":
+                # Segmented color attribute - encode each segment
+                base_channels = attr.channel_count // segments
+                for seg in range(segments):
+                    value = None
+                    seg_raw_key = f"{raw_name}_{seg}" if raw_name else None
+                    seg_key = f"color_{seg}"
+
+                    # Check for segment-specific raw key
+                    if seg_raw_key and seg_raw_key in state:
+                        value = state[seg_raw_key]
+                    # Check for segment-specific color key
+                    elif seg_key in state:
+                        color_value = state[seg_key]
+                        if hasattr(attr, "convert"):
+                            value = attr.convert(color_value)
+                        else:
+                            value = color_value
+                    # Fall back to unified color key (same for all segments)
+                    elif "color" in state:
+                        color_value = state["color"]
+                        if hasattr(attr, "convert"):
+                            value = attr.convert(color_value)
+                        else:
+                            value = color_value
+                    else:
+                        value = attr.default_value
+
+                    dmx_bytes = attr.encode(value)
+                    for i, byte in enumerate(dmx_bytes[:base_channels]):
+                        result[offset + i] = byte
+                    offset += base_channels
+            else:
+                # Non-segmented attribute (original logic)
+                value = None
+
+                # Check for raw_* key first (bypass conversion)
+                if raw_name and raw_name in state:
+                    value = state[raw_name]
+                # Check for color key with conversion
+                elif attr.name == "color" and "color" in state:
+                    color_value = state["color"]
+                    if hasattr(attr, "convert"):
+                        value = attr.convert(color_value)
+                    else:
+                        value = color_value
+                # Fall back to attribute name or default
+                elif attr.name in state:
+                    value = state[attr.name]
+                else:
+                    value = attr.default_value
+
+                dmx_bytes = attr.encode(value)
+                for i, byte in enumerate(dmx_bytes):
+                    result[offset + i] = byte
+                offset += attr.channel_count
         return result
 
 
@@ -205,6 +246,14 @@ class Fixture:
         """Register this fixture with its groups."""
         for group in self.groups:
             group._add(self)
+
+    @property
+    def segment_count(self) -> int:
+        """Max segments across all segmented attributes."""
+        return max(
+            (getattr(attr, "segments", 1) for attr in self.fixture_type.attributes),
+            default=1,
+        )
 
     def __hash__(self) -> int:
         return id(self)
