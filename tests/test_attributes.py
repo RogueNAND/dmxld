@@ -6,10 +6,12 @@ from dmxld.attributes import (
     DimmerAttr,
     RGBAttr,
     RGBWAttr,
+    RGBAAttr,
+    RGBAWAttr,
     PanAttr,
     SkipAttr,
 )
-from dmxld.color import Color, rgb, rgbw
+from dmxld.color import Color, rgb
 
 
 class TestDimmerAttr:
@@ -45,6 +47,24 @@ class TestRGBAttr:
         attr = RGBAttr()
         assert attr.encode(rgb(1.0, 0.5, 0.0)) == [255, 127, 0]
 
+    def test_unified_name(self) -> None:
+        attr = RGBAttr()
+        assert attr.name == "color"
+        assert attr.raw_name == "raw_rgb"
+
+    def test_convert_from_rgb(self) -> None:
+        attr = RGBAttr()
+        result = attr.convert((1.0, 0.5, 0.0))
+        assert result == (1.0, 0.5, 0.0)
+
+    def test_convert_from_rgbw(self) -> None:
+        attr = RGBAttr()
+        # RGBW with white=0.5 should add white to RGB
+        result = attr.convert((0.5, 0.0, 0.0, 0.5))
+        assert result[0] == pytest.approx(1.0)  # r + w
+        assert result[1] == pytest.approx(0.5)  # g + w
+        assert result[2] == pytest.approx(0.5)  # b + w
+
 
 class TestRGBWAttr:
     """RGBW color encoding."""
@@ -58,9 +78,76 @@ class TestRGBWAttr:
         attr = RGBWAttr()
         assert attr.encode(Color(1.0, 0.0, 0.0, 0.5)) == [255, 0, 0, 127]
 
-    def test_rgbw_helper(self) -> None:
+    def test_unified_name(self) -> None:
         attr = RGBWAttr()
-        assert attr.encode(rgbw(1.0, 0.0, 0.0, 0.5)) == [255, 0, 0, 127]
+        assert attr.name == "color"
+        assert attr.raw_name == "raw_rgbw"
+
+    def test_convert_from_rgb(self) -> None:
+        attr = RGBWAttr()
+        # Pure white RGB should become pure white RGBW
+        result = attr.convert((1.0, 1.0, 1.0))
+        assert result[0] == pytest.approx(0.0)  # red extracted
+        assert result[1] == pytest.approx(0.0)  # green extracted
+        assert result[2] == pytest.approx(0.0)  # blue extracted
+        assert result[3] == pytest.approx(1.0)  # white
+
+    def test_convert_from_rgb_pure_red(self) -> None:
+        attr = RGBWAttr()
+        result = attr.convert((1.0, 0.0, 0.0))
+        assert result[0] == pytest.approx(1.0)  # red stays
+        assert result[1] == pytest.approx(0.0)
+        assert result[2] == pytest.approx(0.0)
+        assert result[3] == pytest.approx(0.0)  # no white
+
+    def test_convert_preserves_rgbw(self) -> None:
+        attr = RGBWAttr()
+        # If input is already RGBW, keep as-is
+        result = attr.convert((0.5, 0.5, 0.5, 0.5))
+        assert result == (0.5, 0.5, 0.5, 0.5)
+
+    def test_strategy_override(self) -> None:
+        attr = RGBWAttr(strategy="preserve_rgb")
+        result = attr.convert((1.0, 0.5, 0.5))
+        assert result[0] == pytest.approx(1.0)
+        assert result[1] == pytest.approx(0.5)
+        assert result[2] == pytest.approx(0.5)
+        assert result[3] == pytest.approx(0.0)  # No white extraction
+
+
+class TestRGBAAttr:
+    """RGBA (amber) color encoding."""
+
+    def test_encoding(self) -> None:
+        attr = RGBAAttr()
+        assert attr.channel_count == 4
+        assert attr.encode((1.0, 0.5, 0.0, 0.25)) == [255, 127, 0, 63]
+
+    def test_unified_name(self) -> None:
+        attr = RGBAAttr()
+        assert attr.name == "color"
+        assert attr.raw_name == "raw_rgba"
+
+    def test_convert_from_rgb(self) -> None:
+        attr = RGBAAttr()
+        # Pure red should stay red, no amber
+        result = attr.convert((1.0, 0.0, 0.0))
+        assert result[0] == pytest.approx(1.0)
+        assert result[3] == pytest.approx(0.0)  # No amber
+
+
+class TestRGBAWAttr:
+    """RGBAW (amber + white) color encoding."""
+
+    def test_encoding(self) -> None:
+        attr = RGBAWAttr()
+        assert attr.channel_count == 5
+        assert attr.encode((1.0, 0.5, 0.0, 0.25, 0.1)) == [255, 127, 0, 63, 25]
+
+    def test_unified_name(self) -> None:
+        attr = RGBAWAttr()
+        assert attr.name == "color"
+        assert attr.raw_name == "raw_rgbaw"
 
 
 class TestPanTiltAttr:

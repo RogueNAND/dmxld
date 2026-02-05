@@ -34,7 +34,7 @@ class TestRenderFrame:
         engine = DMXEngine(rig=rig)
         scene = SceneClip(
             selector=lambda r: r.all,
-            params=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 1.0, 1.0)),
+            params=lambda f: FixtureState(dimmer=1.0, color=(1.0, 1.0, 1.0)),
             clip_duration=10.0,
         )
         result = engine.render_frame(scene, t=1.0)
@@ -62,7 +62,7 @@ class TestRenderFrame:
         engine = DMXEngine(rig=rig)
         scene = SceneClip(
             selector=lambda r: r.all,
-            params=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
+            params=lambda f: FixtureState(dimmer=1.0, color=(1.0, 0.0, 0.0)),
             clip_duration=10.0,
         )
         result = engine.render_frame(scene, t=1.0)

@@ -23,6 +23,8 @@ from dmxld.attributes import (
     DimmerAttr,
     RGBAttr,
     RGBWAttr,
+    RGBAAttr,
+    RGBAWAttr,
     StrobeAttr,
     PanAttr,
     TiltAttr,
@@ -31,7 +33,7 @@ from dmxld.attributes import (
 )
 
 # Color
-from dmxld.color import Color, rgb, rgbw
+from dmxld.color import Color, rgb, set_color_strategy
 
 __all__ = [
     # Model
@@ -58,6 +60,8 @@ __all__ = [
     "DimmerAttr",
     "RGBAttr",
     "RGBWAttr",
+    "RGBAAttr",
+    "RGBAWAttr",
     "StrobeAttr",
     "PanAttr",
     "TiltAttr",
@@ -66,7 +70,7 @@ __all__ = [
     # Color
     "Color",
     "rgb",
-    "rgbw",
+    "set_color_strategy",
 ]
 
 __version__ = "0.1.0"

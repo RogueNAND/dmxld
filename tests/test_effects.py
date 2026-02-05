@@ -116,7 +116,7 @@ class TestChaseEffect:
 class TestRainbowEffect:
     """Rainbow effect produces cycling colors."""
 
-    def test_rainbow_has_rgb(self) -> None:
+    def test_rainbow_has_color(self) -> None:
         front = FixtureGroup()
         f = Fixture(RGBDimmer, 1, 1, groups={front})
         rig = Rig([f])
@@ -124,8 +124,24 @@ class TestRainbowEffect:
         clip = Rainbow(speed=0.5)(front, duration=10.0)
         result = clip.render(0.0, rig)
 
-        assert "rgb" in result[f]
+        assert "color" in result[f]
         assert "dimmer" in result[f]
+
+    def test_rainbow_color_varies_with_time(self) -> None:
+        front = FixtureGroup()
+        f = Fixture(RGBDimmer, 1, 1, groups={front})
+        rig = Rig([f])
+
+        clip = Rainbow(speed=1.0)(front, duration=10.0)
+
+        result_t0 = clip.render(0.0, rig)
+        result_t1 = clip.render(0.5, rig)
+
+        color0 = result_t0[f]["color"][1]
+        color1 = result_t1[f]["color"][1]
+
+        # Colors should be different at different times
+        assert color0 != color1
 
 
 class TestStrobeEffect:
@@ -187,13 +203,13 @@ class TestSolidEffect:
         dimmer = result[f]["dimmer"][1]
         assert dimmer == 0.75
 
-    def test_solid_with_rgb(self) -> None:
+    def test_solid_with_color(self) -> None:
         front = FixtureGroup()
         f = Fixture(RGBDimmer, 1, 1, groups={front})
         rig = Rig([f])
 
-        clip = Solid(dimmer=1.0, rgb=(1.0, 0.0, 0.5))(front, duration=10.0)
+        clip = Solid(dimmer=1.0, color=(1.0, 0.0, 0.5))(front, duration=10.0)
         result = clip.render(0.0, rig)
 
         assert result[f]["dimmer"][1] == 1.0
-        assert result[f]["rgb"][1] == (1.0, 0.0, 0.5)
+        assert result[f]["color"][1] == (1.0, 0.0, 0.5)

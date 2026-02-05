@@ -39,7 +39,7 @@ class TestFixtureType:
         assert RGBDimmer.channel_count == 4  # 1 dimmer + 3 RGB
 
     def test_encode(self) -> None:
-        state = FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0))
+        state = FixtureState(dimmer=1.0, color=(1.0, 0.0, 0.0))
         encoded = RGBDimmer.encode(state)
         assert encoded == {0: 255, 1: 255, 2: 0, 3: 0}
 

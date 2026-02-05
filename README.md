@@ -33,7 +33,7 @@ rig = Rig([
 # 3. Create a scene
 scene = SceneClip(
     selector=front,
-    params=lambda f: FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0)),
+    params=lambda f: FixtureState(dimmer=1.0, color=(1.0, 0.0, 0.0)),
     clip_duration=5.0,
     fade_in=1.0,
 )
@@ -71,7 +71,7 @@ clip = Chase(fixture_count=8, speed=2.0)(back, duration=10.0)
 clip = Rainbow(speed=0.2)(front | back, duration=10.0)
 clip = Strobe(rate=10.0, duty=0.3)(front, duration=5.0)
 clip = Wave(speed=1.0, wavelength=4.0)(front, duration=10.0)
-clip = Solid(dimmer=0.8, rgb=(1.0, 0.5, 0.0))(front, duration=10.0)
+clip = Solid(dimmer=0.8, color=(1.0, 0.5, 0.0))(front, duration=10.0)
 ```
 
 ## Custom Effects
@@ -86,7 +86,7 @@ pulse = EffectClip(
     selector=front,
     params=lambda t, f, i: FixtureState(
         dimmer=0.5 + 0.5 * math.sin(t * 2 * math.pi),
-        rgb=(1.0, 0.0, 0.0),
+        color=(1.0, 0.0, 0.0),
     ),
     clip_duration=10.0,
 )
@@ -159,11 +159,15 @@ print(dmx_data)  # {1: {1: 255, 2: 255, 3: 0, 4: 0}}
 | `DimmerAttr(fine=False)` | 1-2 | 8 or 16-bit |
 | `RGBAttr()` | 3 | Red, Green, Blue |
 | `RGBWAttr()` | 4 | Red, Green, Blue, White |
+| `RGBAAttr()` | 4 | Red, Green, Blue, Amber |
+| `RGBAWAttr()` | 5 | Red, Green, Blue, Amber, White |
 | `StrobeAttr()` | 1 | 0=off, 1=max |
 | `PanAttr(fine=False)` | 1-2 | 8 or 16-bit |
 | `TiltAttr(fine=False)` | 1-2 | 8 or 16-bit |
 | `GoboAttr()` | 1 | Gobo wheel |
 | `SkipAttr(count)` | n | Unused channels |
+
+All color attributes respond to a unified `color=` key (see [Unified Color](#unified-color)).
 
 ```python
 MovingHead = FixtureType(
@@ -183,16 +187,48 @@ MovingHead = FixtureType(
 | `Rainbow(speed, saturation)` | speed: cycles/sec, saturation |
 | `Strobe(rate, duty)` | rate: Hz, duty: 0-1 |
 | `Wave(speed, wavelength)` | speed: waves/sec, wavelength |
-| `Solid(dimmer, rgb)` | dimmer: 0-1, rgb: tuple |
+| `Solid(dimmer, color)` | dimmer: 0-1, color: tuple |
 
 ### FixtureState
 
 All values normalized 0.0-1.0:
 
 ```python
-state = FixtureState(dimmer=1.0, rgb=(1.0, 0.0, 0.0))
+state = FixtureState(dimmer=1.0, color=(1.0, 0.0, 0.0))
 state["pan"] = 0.5
 state.get("dimmer")
+```
+
+### Unified Color
+
+Set `color=` once and it works on any fixture type—RGB, RGBW, RGBA, etc.:
+
+```python
+from dmxld import Color, FixtureState
+
+# Same state works on RGB and RGBW fixtures
+state = FixtureState(dimmer=1.0, color=(1.0, 0.5, 0.0))  # Orange
+# RGB fixture:  R=255, G=127, B=0
+# RGBW fixture: R=127, G=0, B=0, W=127 (white extracted)
+
+# HSV input for hue-based effects
+color = Color.from_hsv(h=0.0, s=1.0, v=1.0)  # Red
+state = FixtureState(dimmer=1.0, color=color)
+
+# Bypass conversion with raw_* keys
+state = FixtureState(dimmer=1.0, raw_rgbw=(0.5, 0.5, 0.5, 0.5))
+```
+
+Control white extraction strategy:
+
+```python
+from dmxld import set_color_strategy, RGBWAttr
+
+set_color_strategy("balanced")      # Extract white from RGB (default)
+set_color_strategy("preserve_rgb")  # Keep RGB as-is, white=0
+
+# Per-fixture override
+RGBWPar = FixtureType(DimmerAttr(), RGBWAttr(strategy="preserve_rgb"))
 ```
 
 ### Fixture Positioning

@@ -140,11 +140,36 @@ class FixtureType:
         )
 
     def encode(self, state: FixtureState) -> dict[int, int]:
-        """Encode state to DMX values (0-255)."""
+        """Encode state to DMX values (0-255).
+
+        For color attributes, the priority is:
+        1. raw_* key (e.g., raw_rgb, raw_rgbw) - explicit, no conversion
+        2. color key - automatic conversion via attr.convert()
+        3. default_value - if no color specified
+        """
         result: dict[int, int] = {}
         offset = 0
         for attr in self.attributes:
-            value = state.get(attr.name, attr.default_value)
+            value = None
+
+            # Check for raw_* key first (bypass conversion)
+            raw_name = getattr(attr, "raw_name", None)
+            if raw_name and raw_name in state:
+                value = state[raw_name]
+            # Check for color key with conversion
+            elif attr.name == "color" and "color" in state:
+                color_value = state["color"]
+                # Use convert() if available (color attributes)
+                if hasattr(attr, "convert"):
+                    value = attr.convert(color_value)
+                else:
+                    value = color_value
+            # Fall back to attribute name or default
+            elif attr.name in state:
+                value = state[attr.name]
+            else:
+                value = attr.default_value
+
             dmx_bytes = attr.encode(value)
             for i, byte in enumerate(dmx_bytes):
                 result[offset + i] = byte

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Iterable
 
 from dmxld.clips import EffectClip
+from dmxld.color import Color
 from dmxld.model import Fixture, FixtureState
 
 if TYPE_CHECKING:
@@ -152,31 +153,8 @@ class Rainbow(EffectTemplate):
 
     def render_params(self, t: float, f: Fixture, i: int) -> FixtureState:
         hue = (t * self.speed + i * 0.1) % 1.0
-        r, g, b = self._hsv_to_rgb(hue, self.saturation, 1.0)
-        return FixtureState(dimmer=1.0, rgb=(r, g, b))
-
-    @staticmethod
-    def _hsv_to_rgb(h: float, s: float, v: float) -> tuple[float, float, float]:
-        """Convert HSV to RGB (all values 0.0-1.0)."""
-        if s == 0.0:
-            return (v, v, v)
-        i = int(h * 6.0)
-        f = (h * 6.0) - i
-        p = v * (1.0 - s)
-        q = v * (1.0 - s * f)
-        t = v * (1.0 - s * (1.0 - f))
-        i = i % 6
-        if i == 0:
-            return (v, t, p)
-        if i == 1:
-            return (q, v, p)
-        if i == 2:
-            return (p, v, t)
-        if i == 3:
-            return (p, q, v)
-        if i == 4:
-            return (t, p, v)
-        return (v, p, q)
+        color = Color.from_hsv(hue, self.saturation, 1.0)
+        return FixtureState(dimmer=1.0, color=color)
 
 
 @dataclass
@@ -227,17 +205,17 @@ class Solid(EffectTemplate):
 
     Args:
         dimmer: Dimmer value (0.0-1.0)
-        rgb: Optional RGB color tuple
+        color: Optional color (RGB tuple or Color object)
 
     Example:
-        clip = Solid(dimmer=0.8, rgb=(1.0, 0.5, 0.0))(front, duration=10.0)
+        clip = Solid(dimmer=0.8, color=(1.0, 0.5, 0.0))(front, duration=10.0)
     """
 
     dimmer: float = 1.0
-    rgb: tuple[float, float, float] | None = None
+    color: tuple[float, float, float] | Color | None = None
 
     def render_params(self, t: float, f: Fixture, i: int) -> FixtureState:
         state = FixtureState(dimmer=self.dimmer)
-        if self.rgb is not None:
-            state["rgb"] = self.rgb
+        if self.color is not None:
+            state["color"] = self.color
         return state
