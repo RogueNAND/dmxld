@@ -51,6 +51,23 @@ while t < scene.duration:
 engine.stop()
 ```
 
+### Multi-layer Scenes
+
+Apply different states to different groups in a single scene with `layers`:
+
+```python
+scene = SceneClip(
+    layers=[
+        (front, FixtureState(dimmer=1.0, color=(1.0, 0.0, 0.0))),
+        (back,  lambda f: FixtureState(dimmer=0.5, color=(0.0, 0.0, 1.0))),
+    ],
+    clip_duration=5.0,
+    fade_in=1.0,
+)
+```
+
+Each layer is a `(selector, params)` tuple. When layers overlap, later layers overwrite earlier ones per attribute.
+
 ## Selectors
 
 Groups work as selectors. Combine them with set operations:

@@ -39,44 +39,87 @@ def _calculate_fade(
     return 1.0
 
 
+Layer = tuple[Selector | Iterable[Fixture], ParamsFn | FixtureState]
+
+
 @dataclass
 class SceneClip:
     """Static scene with optional fade in/out.
 
+    Can be created with a single selector/params pair, or with multiple layers:
+
+        # Single layer (original form)
+        SceneClip(selector=front, params=FixtureState(dimmer=1.0), clip_duration=5.0)
+
+        # Multi-layer form
+        SceneClip(layers=[
+            (front, FixtureState(dimmer=1.0, color=(1,0,0))),
+            (back,  lambda f: FixtureState(dimmer=0.5, color=(0,0,1))),
+        ], clip_duration=5.0)
+
+    When layers overlap (same fixture in multiple layers), later layers overwrite
+    earlier ones per attribute.
+
     Args:
+        selector: Fixture selector (single-layer form).
+        params: Parameters function or static state (single-layer form).
+        layers: List of (selector, params) tuples (multi-layer form).
         blend_op: How to combine with other clips (SET overwrites, MUL multiplies,
                   ADD_CLAMP adds). Defaults to SET.
     """
 
-    selector: Selector | Iterable[Fixture]
-    params: ParamsFn | FixtureState
+    selector: Selector | Iterable[Fixture] | None = None
+    params: ParamsFn | FixtureState | None = None
+    layers: list[Layer] | None = None
     fade_in: float = 0.0
     fade_out: float = 0.0
     clip_duration: float | None = None
     blend_op: BlendOp = BlendOp.SET
 
+    def __post_init__(self) -> None:
+        has_single = self.selector is not None or self.params is not None
+        has_layers = self.layers is not None
+        if has_single and has_layers:
+            raise ValueError("Use either selector/params or layers, not both")
+        if not has_single and not has_layers:
+            raise ValueError("Provide selector/params or layers")
+        if has_single and (self.selector is None or self.params is None):
+            raise ValueError("Both selector and params are required")
+
     @property
     def duration(self) -> float | None:
         return self.clip_duration
+
+    def _resolve_layers(self) -> list[tuple[Selector, ParamsFn]]:
+        """Normalize single or multi-layer form into list of (selector_fn, params_fn)."""
+        if self.layers is not None:
+            raw = self.layers
+        else:
+            raw = [(self.selector, self.params)]
+        result = []
+        for sel, par in raw:
+            selector_fn = sel if callable(sel) else lambda r, s=sel: s
+            params_fn = par if callable(par) else lambda f, p=par: p
+            result.append((selector_fn, params_fn))
+        return result
 
     def render(self, t: float, rig: Rig) -> dict[Fixture, FixtureDelta]:
         if t < 0 or (self.clip_duration is not None and t > self.clip_duration):
             return {}
 
         fade_mult = _calculate_fade(t, self.clip_duration, self.fade_in, self.fade_out)
-        selector_fn = self.selector if callable(self.selector) else lambda r: self.selector
-        params_fn = self.params if callable(self.params) else lambda f: self.params
 
         result: dict[Fixture, FixtureDelta] = {}
-        for fixture in selector_fn(rig):
-            state = params_fn(fixture)
-            delta = FixtureDelta()
-            for name, value in state.items():
-                if name == "dimmer":
-                    delta[name] = (self.blend_op, value * fade_mult)
-                else:
-                    delta[name] = (self.blend_op, value)
-            result[fixture] = delta
+        for selector_fn, params_fn in self._resolve_layers():
+            for fixture in selector_fn(rig):
+                state = params_fn(fixture)
+                delta = result.get(fixture) or FixtureDelta()
+                for name, value in state.items():
+                    if name == "dimmer":
+                        delta[name] = (self.blend_op, value * fade_mult)
+                    else:
+                        delta[name] = (self.blend_op, value)
+                result[fixture] = delta
         return result
 
 
