@@ -26,6 +26,18 @@ class FixtureDelta(dict[str, tuple[BlendOp, Any]]):
         items = ", ".join(f"{k}={v!r}" for k, v in self.items())
         return f"FixtureDelta({items})"
 
+    def scale(self, factor: float) -> FixtureDelta:
+        """Return new FixtureDelta with all values scaled by factor."""
+        result = FixtureDelta()
+        for name, (op, value) in self.items():
+            if isinstance(value, tuple):
+                result[name] = (op, tuple(v * factor for v in value))
+            elif isinstance(value, (int, float)):
+                result[name] = (op, value * factor)
+            else:
+                result[name] = (op, value)
+        return result
+
 
 def _clamp(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, v))
@@ -81,3 +93,8 @@ def merge_deltas(
     for delta in deltas:
         state = apply_delta(state, delta)
     return state
+
+
+def scale_deltas(deltas: dict, factor: float) -> dict:
+    """Scale all FixtureDelta values in a deltas dict by factor."""
+    return {target: delta.scale(factor) for target, delta in deltas.items()}

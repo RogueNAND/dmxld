@@ -35,7 +35,7 @@ class EffectTemplate:
         """Override to define the effect behavior.
 
         Args:
-            t: Time in seconds since clip start
+            t: Time since clip start (units match render's t)
             f: The fixture being rendered
             i: Index of the fixture in the selector order
             seg: Segment index within the fixture (0 for non-segmented fixtures)

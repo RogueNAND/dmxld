@@ -12,9 +12,8 @@ pip install dmxld stupidArtnet  # Art-Net
 ```python
 from dmxld import (
     FixtureType, FixtureGroup, Rig, DMXEngine,
-    DimmerAttr, RGBAttr, SceneClip, FixtureState
+    DimmerAttr, RGBAttr, Scene, FixtureState
 )
-import time
 
 # 1. Define groups and fixture types
 front = FixtureGroup()
@@ -31,23 +30,15 @@ rig = Rig([
 ])
 
 # 3. Create a scene
-scene = SceneClip(
+scene = Scene(
     selector=front,
     params=lambda f: FixtureState(dimmer=1.0, color=(1.0, 0.0, 0.0)),
-    clip_duration=5.0,
-    fade_in=1.0,
 )
 
 # 4. Render and send
 engine = DMXEngine(rig=rig)
 engine.start()
-
-t = 0.0
-while t < scene.duration:
-    engine.send(engine.render_frame(scene, t))
-    time.sleep(1/40)
-    t += 1/40
-
+engine.show(scene)
 engine.stop()
 ```
 
@@ -56,13 +47,11 @@ engine.stop()
 Apply different states to different groups in a single scene with `layers`:
 
 ```python
-scene = SceneClip(
+scene = Scene(
     layers=[
         (front, FixtureState(dimmer=1.0, color=(1.0, 0.0, 0.0))),
         (back,  lambda f: FixtureState(dimmer=0.5, color=(0.0, 0.0, 1.0))),
     ],
-    clip_duration=5.0,
-    fade_in=1.0,
 )
 ```
 
@@ -82,8 +71,8 @@ front ^ back      # Symmetric difference (in one but not both)
 fixture in front  # Membership test
 if front:         # True if non-empty
 
-SceneClip(selector=front | back, ...)
-SceneClip(selector=lambda r: r.all, ...)  # All fixtures in rig
+Scene(selector=front | back, ...)
+Scene(selector=lambda r: r.all, ...)  # All fixtures in rig
 ```
 
 ## Built-in Effects
@@ -169,7 +158,7 @@ engine = DMXEngine(rig=rig, protocol=Protocol.ARTNET, artnet_target="192.168.1.1
 ## Testing Without Hardware
 
 ```python
-dmx_data = engine.render_frame(scene, t=1.5)
+dmx_data = engine.render_scene(scene)
 print(dmx_data)  # {1: {1: 255, 2: 255, 3: 0, 4: 0}}
 ```
 
@@ -226,7 +215,7 @@ state.get("dimmer")
 
 ### Unified Color
 
-Set `color=` once and it works on any fixture type—RGB, RGBW, RGBA, etc.:
+Set `color=` once and it works on any fixture type--RGB, RGBW, RGBA, etc.:
 
 ```python
 from dmxld import Color, FixtureState

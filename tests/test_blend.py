@@ -60,3 +60,44 @@ class TestMergeDeltas:
         delta = FixtureDelta(dimmer=(BlendOp.MUL, 0.5))
         result = merge_deltas([delta], initial)
         assert result["dimmer"] == pytest.approx(0.4)
+
+
+class TestFixtureDeltaScale:
+    def test_scale_scalar(self) -> None:
+        delta = FixtureDelta(dimmer=(BlendOp.SET, 1.0))
+        scaled = delta.scale(0.5)
+        assert scaled["dimmer"] == (BlendOp.SET, 0.5)
+
+    def test_scale_tuple(self) -> None:
+        delta = FixtureDelta(color=(BlendOp.SET, (1.0, 0.8, 0.6)))
+        scaled = delta.scale(0.5)
+        assert scaled["color"][1] == pytest.approx((0.5, 0.4, 0.3))
+
+    def test_scale_preserves_blend_op(self) -> None:
+        delta = FixtureDelta(dimmer=(BlendOp.MUL, 0.8))
+        scaled = delta.scale(0.5)
+        assert scaled["dimmer"][0] == BlendOp.MUL
+
+    def test_scale_returns_new_delta(self) -> None:
+        delta = FixtureDelta(dimmer=(BlendOp.SET, 1.0))
+        scaled = delta.scale(0.5)
+        assert delta["dimmer"] == (BlendOp.SET, 1.0)
+        assert scaled["dimmer"] == (BlendOp.SET, 0.5)
+
+
+class TestScaleDeltas:
+    def test_scales_all_fixtures(self) -> None:
+        from dmxld.blend import scale_deltas
+        from dmxld.attributes import DimmerAttr, RGBAttr
+        from dmxld.model import Fixture, FixtureType
+
+        FT = FixtureType(DimmerAttr(), RGBAttr())
+        f1 = Fixture(FT, universe=1, address=1)
+        f2 = Fixture(FT, universe=1, address=5)
+        deltas = {
+            f1: FixtureDelta(dimmer=(BlendOp.SET, 1.0)),
+            f2: FixtureDelta(dimmer=(BlendOp.SET, 0.8)),
+        }
+        scaled = scale_deltas(deltas, 0.5)
+        assert scaled[f1]["dimmer"] == (BlendOp.SET, 0.5)
+        assert scaled[f2]["dimmer"] == (BlendOp.SET, pytest.approx(0.4))

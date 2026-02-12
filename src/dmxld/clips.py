@@ -26,10 +26,10 @@ Selector = Callable[[Rig], Iterable[Fixture]]
 ParamsFn = Callable[[Fixture], FixtureState]
 
 
-def _calculate_fade(
+def fade(
     t: float, duration: float | None, fade_in: float, fade_out: float
 ) -> float:
-    """Calculate fade multiplier for time t."""
+    """Calculate fade multiplier for time t (units are generic — same unit as t)."""
     if fade_in > 0 and t < fade_in:
         return t / fade_in
     if duration is not None and fade_out > 0:
@@ -43,19 +43,22 @@ Layer = tuple[Selector | Iterable[Fixture], ParamsFn | FixtureState]
 
 
 @dataclass
-class SceneClip:
-    """Static scene with optional fade in/out.
+class Scene:
+    """Static lighting look — no time dependency.
+
+    Defines what lights look like via layers of (selector, state) pairs.
+    Fading and timeline integration are handled externally.
 
     Can be created with a single selector/params pair, or with multiple layers:
 
-        # Single layer (original form)
-        SceneClip(selector=front, params=FixtureState(dimmer=1.0), clip_duration=5.0)
+        # Single layer
+        Scene(selector=front, params=FixtureState(dimmer=1.0))
 
         # Multi-layer form
-        SceneClip(layers=[
+        Scene(layers=[
             (front, FixtureState(dimmer=1.0, color=(1,0,0))),
             (back,  lambda f: FixtureState(dimmer=0.5, color=(0,0,1))),
-        ], clip_duration=5.0)
+        ])
 
     When layers overlap (same fixture in multiple layers), later layers overwrite
     earlier ones per attribute.
@@ -71,9 +74,6 @@ class SceneClip:
     selector: Selector | Iterable[Fixture] | None = None
     params: ParamsFn | FixtureState | None = None
     layers: list[Layer] | None = None
-    fade_in: float = 0.0
-    fade_out: float = 0.0
-    clip_duration: float | None = None
     blend_op: BlendOp = BlendOp.SET
 
     def __post_init__(self) -> None:
@@ -85,10 +85,6 @@ class SceneClip:
             raise ValueError("Provide selector/params or layers")
         if has_single and (self.selector is None or self.params is None):
             raise ValueError("Both selector and params are required")
-
-    @property
-    def duration(self) -> float | None:
-        return self.clip_duration
 
     def _resolve_layers(self) -> list[tuple[Selector, ParamsFn]]:
         """Normalize single or multi-layer form into list of (selector_fn, params_fn)."""
@@ -103,22 +99,14 @@ class SceneClip:
             result.append((selector_fn, params_fn))
         return result
 
-    def render(self, t: float, rig: Rig) -> dict[Fixture, FixtureDelta]:
-        if t < 0 or (self.clip_duration is not None and t > self.clip_duration):
-            return {}
-
-        fade_mult = _calculate_fade(t, self.clip_duration, self.fade_in, self.fade_out)
-
+    def render(self, rig: Rig) -> dict[Fixture, FixtureDelta]:
         result: dict[Fixture, FixtureDelta] = {}
         for selector_fn, params_fn in self._resolve_layers():
             for fixture in selector_fn(rig):
                 state = params_fn(fixture)
                 delta = result.get(fixture) or FixtureDelta()
                 for name, value in state.items():
-                    if name == "dimmer":
-                        delta[name] = (self.blend_op, value * fade_mult)
-                    else:
-                        delta[name] = (self.blend_op, value)
+                    delta[name] = (self.blend_op, value)
                 result[fixture] = delta
         return result
 
@@ -178,7 +166,7 @@ class EffectClip:
         if t < 0 or (self.clip_duration is not None and t > self.clip_duration):
             return {}
 
-        fade_mult = _calculate_fade(t, self.clip_duration, self.fade_in, self.fade_out)
+        fade_mult = fade(t, self.clip_duration, self.fade_in, self.fade_out)
         selector_fn = self.selector if callable(self.selector) else lambda r: self.selector
 
         result: dict[Fixture, FixtureDelta] = {}

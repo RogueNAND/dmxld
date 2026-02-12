@@ -8,7 +8,7 @@ from enum import Enum
 from typing import TYPE_CHECKING
 
 from dmxld.blend import FixtureDelta, merge_deltas
-from dmxld.clips import Clip
+from dmxld.clips import Clip, Scene
 from dmxld.model import Fixture, FixtureState, Rig
 
 if TYPE_CHECKING:
@@ -149,9 +149,10 @@ class DMXEngine:
                 universes, self.universe_ips, self.artnet_target, self.fps
             )
 
-    def _apply_deltas_and_encode(
+    def apply_deltas(
         self, deltas: dict[Fixture, FixtureDelta]
     ) -> dict[int, dict[int, int]]:
+        """Apply deltas to fixture states and encode to DMX."""
         if self.rig is None:
             return {}
         for fixture in self.rig.all:
@@ -183,4 +184,23 @@ class DMXEngine:
             return {}
         self._init_fixture_states()
         deltas = clip.render(t, self.rig)
-        return self._apply_deltas_and_encode(deltas)
+        return self.apply_deltas(deltas)
+
+    def render_deltas(self, deltas: dict[Fixture, FixtureDelta]) -> dict[int, dict[int, int]]:
+        """Reset fixture states, apply deltas, encode to DMX. Use as Runner apply_fn."""
+        if self.rig is None:
+            return {}
+        self._init_fixture_states()
+        return self.apply_deltas(deltas)
+
+    def render_scene(self, scene: Scene) -> dict[int, dict[int, int]]:
+        """Render a Scene to DMX data (no time parameter)."""
+        if self.rig is None:
+            return {}
+        self._init_fixture_states()
+        deltas = scene.render(self.rig)
+        return self.apply_deltas(deltas)
+
+    def show(self, scene: Scene) -> None:
+        """Render a scene and immediately send it."""
+        self.send(self.render_scene(scene))

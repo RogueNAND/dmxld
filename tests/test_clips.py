@@ -4,7 +4,7 @@ import pytest
 
 from dmxld.attributes import DimmerAttr, RGBAttr, RGBWAttr
 from dmxld.blend import BlendOp
-from dmxld.clips import EffectClip, SceneClip
+from dmxld.clips import EffectClip, Scene, fade
 from dmxld.model import Fixture, FixtureState, FixtureType, Rig, Vec3
 
 
@@ -27,61 +27,47 @@ def multi_rig() -> Rig:
     ])
 
 
-class TestSceneClip:
+class TestScene:
     def test_render(self, rig: Rig) -> None:
-        scene = SceneClip(
+        scene = Scene(
             selector=lambda r: r.all,
             params=lambda f: FixtureState(dimmer=1.0),
-            clip_duration=10.0,
         )
-        assert scene.duration == 10.0
-        assert len(scene.render(5.0, rig)) == 1
-        assert len(scene.render(15.0, rig)) == 0  # outside duration
+        assert len(scene.render(rig)) == 1
 
-    def test_fade_in_out(self, rig: Rig) -> None:
-        scene = SceneClip(
+    def test_dimmer_passes_through(self, rig: Rig) -> None:
+        scene = Scene(
             selector=lambda r: r.all,
-            params=lambda f: FixtureState(dimmer=1.0),
-            fade_in=2.0,
-            fade_out=2.0,
-            clip_duration=10.0,
+            params=lambda f: FixtureState(dimmer=0.7),
         )
-        # Halfway through fade_in
-        delta = scene.render(1.0, rig)[rig.all[0]]
-        assert delta["dimmer"][1] == pytest.approx(0.5)
-
-        # Halfway through fade_out
-        delta = scene.render(9.0, rig)[rig.all[0]]
-        assert delta["dimmer"][1] == pytest.approx(0.5)
+        delta = scene.render(rig)[rig.all[0]]
+        assert delta["dimmer"][1] == pytest.approx(0.7)
 
     def test_object_forms(self, rig: Rig) -> None:
         """Accepts fixtures list and FixtureState directly."""
-        scene = SceneClip(
+        scene = Scene(
             selector=rig.all,
             params=FixtureState(dimmer=0.8),
-            clip_duration=5.0,
         )
-        delta = scene.render(1.0, rig)[rig.all[0]]
+        delta = scene.render(rig)[rig.all[0]]
         assert delta["dimmer"][1] == pytest.approx(0.8)
 
     def test_blend_op(self, rig: Rig) -> None:
-        scene_set = SceneClip(
+        scene_set = Scene(
             selector=lambda r: r.all,
             params=lambda f: FixtureState(dimmer=0.5),
-            clip_duration=5.0,
         )
-        scene_mul = SceneClip(
+        scene_mul = Scene(
             selector=lambda r: r.all,
             params=lambda f: FixtureState(dimmer=0.5),
-            clip_duration=5.0,
             blend_op=BlendOp.MUL,
         )
-        assert scene_set.render(1.0, rig)[rig.all[0]]["dimmer"][0] == BlendOp.SET
-        assert scene_mul.render(1.0, rig)[rig.all[0]]["dimmer"][0] == BlendOp.MUL
+        assert scene_set.render(rig)[rig.all[0]]["dimmer"][0] == BlendOp.SET
+        assert scene_mul.render(rig)[rig.all[0]]["dimmer"][0] == BlendOp.MUL
 
 
-class TestSceneClipLayers:
-    """SceneClip with multi-layer support."""
+class TestSceneLayers:
+    """Scene with multi-layer support."""
 
     @pytest.fixture
     def two_group_rig(self) -> Rig:
@@ -98,14 +84,13 @@ class TestSceneClipLayers:
 
     def test_basic_layers(self, two_group_rig: Rig) -> None:
         """Layers apply different params to different selectors."""
-        scene = SceneClip(
+        scene = Scene(
             layers=[
                 (self.front, FixtureState(dimmer=1.0, color=(1.0, 0.0, 0.0))),
                 (self.back, FixtureState(dimmer=0.5, color=(0.0, 0.0, 1.0))),
             ],
-            clip_duration=5.0,
         )
-        deltas = scene.render(1.0, two_group_rig)
+        deltas = scene.render(two_group_rig)
         assert len(deltas) == 3
 
         # Front fixtures get red
@@ -123,14 +108,13 @@ class TestSceneClipLayers:
     def test_later_layer_overwrites(self, two_group_rig: Rig) -> None:
         """Later layers overwrite earlier ones for the same fixture."""
         all_fixtures = two_group_rig.all
-        scene = SceneClip(
+        scene = Scene(
             layers=[
                 (lambda r: r.all, FixtureState(dimmer=1.0, color=(1.0, 0.0, 0.0))),
                 (self.front, FixtureState(dimmer=0.5, color=(0.0, 1.0, 0.0))),
             ],
-            clip_duration=5.0,
         )
-        deltas = scene.render(1.0, two_group_rig)
+        deltas = scene.render(two_group_rig)
 
         # Front fixtures overwritten by second layer
         for f in self.front:
@@ -145,54 +129,59 @@ class TestSceneClipLayers:
 
     def test_layers_with_callable_params(self, two_group_rig: Rig) -> None:
         """Layers accept callable params."""
-        scene = SceneClip(
+        scene = Scene(
             layers=[
                 (self.front, lambda f: FixtureState(dimmer=0.8)),
                 (self.back, lambda f: FixtureState(dimmer=0.3)),
             ],
-            clip_duration=5.0,
         )
-        deltas = scene.render(1.0, two_group_rig)
+        deltas = scene.render(two_group_rig)
         for f in self.front:
             assert deltas[f]["dimmer"][1] == pytest.approx(0.8)
         for f in self.back:
             assert deltas[f]["dimmer"][1] == pytest.approx(0.3)
 
-    def test_layers_with_fade(self, two_group_rig: Rig) -> None:
-        """Fade applies to all layers."""
-        scene = SceneClip(
-            layers=[
-                (self.front, FixtureState(dimmer=1.0)),
-                (self.back, FixtureState(dimmer=1.0)),
-            ],
-            fade_in=2.0,
-            clip_duration=5.0,
-        )
-        deltas = scene.render(1.0, two_group_rig)
-        for f in self.front:
-            assert deltas[f]["dimmer"][1] == pytest.approx(0.5)
-        for f in self.back:
-            assert deltas[f]["dimmer"][1] == pytest.approx(0.5)
-
     def test_mutual_exclusivity(self) -> None:
         """Cannot use both selector/params and layers."""
         with pytest.raises(ValueError, match="not both"):
-            SceneClip(
+            Scene(
                 selector=lambda r: r.all,
                 params=FixtureState(dimmer=1.0),
                 layers=[(lambda r: r.all, FixtureState(dimmer=1.0))],
-                clip_duration=5.0,
             )
 
     def test_missing_both(self) -> None:
         """Must provide either selector/params or layers."""
         with pytest.raises(ValueError, match="Provide"):
-            SceneClip(clip_duration=5.0)
+            Scene()
 
     def test_partial_single_form(self) -> None:
         """Must provide both selector and params in single-layer form."""
         with pytest.raises(ValueError, match="Both selector and params"):
-            SceneClip(selector=lambda r: r.all, clip_duration=5.0)
+            Scene(selector=lambda r: r.all)
+
+
+class TestFade:
+    def test_fade_in_ramp(self) -> None:
+        assert fade(0.0, 10.0, 2.0, 0.0) == pytest.approx(0.0)
+        assert fade(1.0, 10.0, 2.0, 0.0) == pytest.approx(0.5)
+        assert fade(2.0, 10.0, 2.0, 0.0) == pytest.approx(1.0)
+        assert fade(5.0, 10.0, 2.0, 0.0) == pytest.approx(1.0)
+
+    def test_fade_out_ramp(self) -> None:
+        assert fade(5.0, 10.0, 0.0, 2.0) == pytest.approx(1.0)
+        assert fade(9.0, 10.0, 0.0, 2.0) == pytest.approx(0.5)
+        assert fade(10.0, 10.0, 0.0, 2.0) == pytest.approx(0.0)
+
+    def test_fade_in_and_out(self) -> None:
+        assert fade(1.0, 10.0, 2.0, 2.0) == pytest.approx(0.5)
+        assert fade(5.0, 10.0, 2.0, 2.0) == pytest.approx(1.0)
+        assert fade(9.0, 10.0, 2.0, 2.0) == pytest.approx(0.5)
+
+    def test_infinite_duration(self) -> None:
+        assert fade(0.0, None, 2.0, 2.0) == pytest.approx(0.0)
+        assert fade(1.0, None, 2.0, 2.0) == pytest.approx(0.5)
+        assert fade(100.0, None, 2.0, 2.0) == pytest.approx(1.0)
 
 
 class TestEffectClip:

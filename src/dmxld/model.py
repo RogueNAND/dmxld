@@ -35,7 +35,7 @@ class FixtureGroup:
         FrontPar(1, 1)
 
         # Use as selector
-        SceneClip(selector=front, ...)
+        Scene(selector=front, ...)
 
         # Iterate
         for f in front:
