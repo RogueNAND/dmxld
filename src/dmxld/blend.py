@@ -38,6 +38,18 @@ class FixtureDelta(dict[str, tuple[BlendOp, Any]]):
                 result[name] = (op, value)
         return result
 
+    def scale_into(self, factor: float, out: FixtureDelta) -> FixtureDelta:
+        """Scale values into an existing FixtureDelta, reusing the object."""
+        out.clear()
+        for name, (op, value) in self.items():
+            if isinstance(value, tuple):
+                out[name] = (op, tuple(v * factor for v in value))
+            elif isinstance(value, (int, float)):
+                out[name] = (op, value * factor)
+            else:
+                out[name] = (op, value)
+        return out
+
 
 def _clamp(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
     return max(lo, min(hi, v))
@@ -98,3 +110,12 @@ def merge_deltas(
 def scale_deltas(deltas: dict, factor: float) -> dict:
     """Scale all FixtureDelta values in a deltas dict by factor."""
     return {target: delta.scale(factor) for target, delta in deltas.items()}
+
+
+def scale_deltas_into(deltas: dict, factor: float, out: dict) -> dict:
+    """Scale all FixtureDelta values into pre-allocated output dict."""
+    for target, delta in deltas.items():
+        if target not in out:
+            out[target] = FixtureDelta()
+        delta.scale_into(factor, out[target])
+    return out

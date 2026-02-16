@@ -48,18 +48,22 @@ class FixtureGroup:
 
     def __init__(self) -> None:
         self._fixtures: WeakSet[Fixture] = WeakSet()
+        self._cached_list: list[Fixture] | None = None
 
     def _add(self, fixture: Fixture) -> None:
         """Register a fixture with this group (called from Fixture.__post_init__)."""
         self._fixtures.add(fixture)
+        self._cached_list = None
 
     def __call__(self, rig: Rig | None = None) -> list[Fixture]:
         """Return fixtures in this group (Selector protocol)."""
-        return list(self._fixtures)
+        if self._cached_list is None:
+            self._cached_list = list(self._fixtures)
+        return self._cached_list
 
     def __iter__(self) -> Iterator[Fixture]:
         """Iterate over fixtures in this group."""
-        return iter(self._fixtures)
+        return iter(self(None))
 
     def __len__(self) -> int:
         """Number of fixtures in this group."""

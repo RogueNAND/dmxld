@@ -85,6 +85,8 @@ class Scene:
             raise ValueError("Provide selector/params or layers")
         if has_single and (self.selector is None or self.params is None):
             raise ValueError("Both selector and params are required")
+        self._resolved_layers = self._resolve_layers()
+        self._render_cache = None
 
     def _resolve_layers(self) -> list[tuple[Selector, ParamsFn]]:
         """Normalize single or multi-layer form into list of (selector_fn, params_fn)."""
@@ -100,14 +102,17 @@ class Scene:
         return result
 
     def render(self, rig: Rig) -> dict[Fixture, FixtureDelta]:
+        if self._render_cache is not None:
+            return self._render_cache
         result: dict[Fixture, FixtureDelta] = {}
-        for selector_fn, params_fn in self._resolve_layers():
+        for selector_fn, params_fn in self._resolved_layers:
             for fixture in selector_fn(rig):
                 state = params_fn(fixture)
                 delta = result.get(fixture) or FixtureDelta()
                 for name, value in state.items():
                     delta[name] = (self.blend_op, value)
                 result[fixture] = delta
+        self._render_cache = result
         return result
 
 

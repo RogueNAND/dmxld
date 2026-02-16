@@ -14,6 +14,7 @@ from dmxld.blend import (
     apply_delta,
     merge_deltas,
     scale_deltas,
+    scale_deltas_into,
 )
 from dmxld.clips import Clip, Scene, EffectClip, fade
 from dmxld.engine import DMXEngine, Protocol
@@ -49,6 +50,7 @@ __all__ = [
     "apply_delta",
     "merge_deltas",
     "scale_deltas",
+    "scale_deltas_into",
     # Clips
     "Clip",
     "Scene",

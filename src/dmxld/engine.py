@@ -128,6 +128,11 @@ class DMXEngine:
             for fixture in self.rig.all:
                 self._fixture_states[fixture] = FixtureState()
 
+    def _reset_fixture_states(self) -> None:
+        """Clear all fixture states in-place without reallocating."""
+        for state in self._fixture_states.values():
+            state.clear()
+
     def set_rig(self, rig: Rig) -> None:
         self.rig = rig
         self._init_fixture_states()
@@ -182,7 +187,7 @@ class DMXEngine:
     def render_frame(self, clip: Clip, t: float) -> dict[int, dict[int, int]]:
         if self.rig is None:
             return {}
-        self._init_fixture_states()
+        self._reset_fixture_states()
         deltas = clip.render(t, self.rig)
         return self.apply_deltas(deltas)
 
@@ -190,14 +195,14 @@ class DMXEngine:
         """Reset fixture states, apply deltas, encode to DMX. Use as Runner apply_fn."""
         if self.rig is None:
             return {}
-        self._init_fixture_states()
+        self._reset_fixture_states()
         return self.apply_deltas(deltas)
 
     def render_scene(self, scene: Scene) -> dict[int, dict[int, int]]:
         """Render a Scene to DMX data (no time parameter)."""
         if self.rig is None:
             return {}
-        self._init_fixture_states()
+        self._reset_fixture_states()
         deltas = scene.render(self.rig)
         return self.apply_deltas(deltas)
 
