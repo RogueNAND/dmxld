@@ -117,6 +117,73 @@ class TestFixtureGroup:
         assert list(overlap) == [f2]
 
 
+class TestFixtureAsSelector:
+    def test_iterable(self) -> None:
+        f = Fixture(DimmerOnly, 1, 1)
+        assert list(f) == [f]
+
+    def test_len(self) -> None:
+        f = Fixture(DimmerOnly, 1, 1)
+        assert len(f) == 1
+
+    def test_callable(self) -> None:
+        f = Fixture(DimmerOnly, 1, 1)
+        assert f(None) == [f]
+
+
+class TestFixtureGroupOperators:
+    def test_fixture_plus_fixture(self) -> None:
+        f1 = Fixture(DimmerOnly, 1, 1)
+        f2 = Fixture(DimmerOnly, 1, 5)
+        group = f1 + f2
+        assert isinstance(group, FixtureGroup)
+        assert set(group) == {f1, f2}
+
+    def test_fixture_plus_group(self) -> None:
+        g = FixtureGroup()
+        f1 = Fixture(DimmerOnly, 1, 1, groups={g})
+        f2 = Fixture(DimmerOnly, 1, 5)
+        result = f2 + g
+        assert isinstance(result, FixtureGroup)
+        assert set(result) == {f1, f2}
+
+    def test_group_plus_fixture(self) -> None:
+        g = FixtureGroup()
+        f1 = Fixture(DimmerOnly, 1, 1, groups={g})
+        f2 = Fixture(DimmerOnly, 1, 5)
+        result = g + f2
+        assert isinstance(result, FixtureGroup)
+        assert set(result) == {f1, f2}
+
+    def test_fixture_or(self) -> None:
+        f1 = Fixture(DimmerOnly, 1, 1)
+        f2 = Fixture(DimmerOnly, 1, 5)
+        assert set(f1 | f2) == {f1, f2}
+
+    def test_fixture_and(self) -> None:
+        g = FixtureGroup()
+        f1 = Fixture(DimmerOnly, 1, 1, groups={g})
+        f2 = Fixture(DimmerOnly, 1, 5)
+        assert set(f1 & g) == {f1}
+        assert set(f2 & g) == set()
+
+    def test_fixture_sub(self) -> None:
+        g = FixtureGroup()
+        f1 = Fixture(DimmerOnly, 1, 1, groups={g})
+        f2 = Fixture(DimmerOnly, 1, 5, groups={g})
+        result = g - f1
+        assert set(result) == {f2}
+
+    def test_fixture_xor(self) -> None:
+        g = FixtureGroup()
+        f1 = Fixture(DimmerOnly, 1, 1, groups={g})
+        f2 = Fixture(DimmerOnly, 1, 5)
+        result = f1 ^ g  # f1 is in both, so excluded
+        assert set(result) == set()
+        result = f2 ^ g  # f2 not in g, f1 in g
+        assert set(result) == {f1, f2}
+
+
 class TestRig:
     def test_all_and_encode(self) -> None:
         rig = Rig([

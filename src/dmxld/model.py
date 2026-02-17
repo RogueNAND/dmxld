@@ -69,32 +69,37 @@ class FixtureGroup:
         """Number of fixtures in this group."""
         return len(self._fixtures)
 
-    def __or__(self, other: FixtureGroup) -> FixtureGroup:
+    def _coerce(self, other: FixtureGroup | Fixture) -> FixtureGroup:
+        if isinstance(other, Fixture):
+            return other._as_group()
+        return other
+
+    def __or__(self, other: FixtureGroup | Fixture) -> FixtureGroup:
         """Union of two groups."""
         result = FixtureGroup()
-        result._fixtures.update(self._fixtures | other._fixtures)
+        result._fixtures.update(self._fixtures | self._coerce(other)._fixtures)
         return result
 
-    def __and__(self, other: FixtureGroup) -> FixtureGroup:
+    def __and__(self, other: FixtureGroup | Fixture) -> FixtureGroup:
         """Intersection of two groups."""
         result = FixtureGroup()
-        result._fixtures.update(self._fixtures & other._fixtures)
+        result._fixtures.update(self._fixtures & self._coerce(other)._fixtures)
         return result
 
-    def __add__(self, other: FixtureGroup) -> FixtureGroup:
+    def __add__(self, other: FixtureGroup | Fixture) -> FixtureGroup:
         """Union of two groups (alias for |)."""
         return self | other
 
-    def __sub__(self, other: FixtureGroup) -> FixtureGroup:
+    def __sub__(self, other: FixtureGroup | Fixture) -> FixtureGroup:
         """Difference of two groups (fixtures in self but not in other)."""
         result = FixtureGroup()
-        result._fixtures.update(self._fixtures - other._fixtures)
+        result._fixtures.update(self._fixtures - self._coerce(other)._fixtures)
         return result
 
-    def __xor__(self, other: FixtureGroup) -> FixtureGroup:
+    def __xor__(self, other: FixtureGroup | Fixture) -> FixtureGroup:
         """Symmetric difference (fixtures in either but not both)."""
         result = FixtureGroup()
-        result._fixtures.update(self._fixtures ^ other._fixtures)
+        result._fixtures.update(self._fixtures ^ self._coerce(other)._fixtures)
         return result
 
     def __contains__(self, fixture: Fixture) -> bool:
@@ -243,6 +248,36 @@ class Fixture:
             (getattr(attr, "segments", 1) for attr in self.fixture_type.attributes),
             default=1,
         )
+
+    def _as_group(self) -> FixtureGroup:
+        """Create a FixtureGroup containing just this fixture."""
+        g = FixtureGroup()
+        g._fixtures.add(self)
+        return g
+
+    def __iter__(self) -> Iterator[Fixture]:
+        yield self
+
+    def __len__(self) -> int:
+        return 1
+
+    def __call__(self, rig: Rig | None = None) -> list[Fixture]:
+        return [self]
+
+    def __add__(self, other: Fixture | FixtureGroup) -> FixtureGroup:
+        return self._as_group() + other
+
+    def __or__(self, other: Fixture | FixtureGroup) -> FixtureGroup:
+        return self._as_group() | other
+
+    def __and__(self, other: Fixture | FixtureGroup) -> FixtureGroup:
+        return self._as_group() & other
+
+    def __sub__(self, other: Fixture | FixtureGroup) -> FixtureGroup:
+        return self._as_group() - other
+
+    def __xor__(self, other: Fixture | FixtureGroup) -> FixtureGroup:
+        return self._as_group() ^ other
 
     def __hash__(self) -> int:
         return id(self)
