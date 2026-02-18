@@ -25,11 +25,12 @@ class FixtureGroup:
     """A group of fixtures that can be used as a selector.
 
     Groups are defined before fixtures and passed to fixtures via the groups parameter.
-    Groups are callable (returning fixtures) and iterable.
+    Groups are callable (returning fixtures) and iterable. An optional ``group``
+    label categorises the group for UI display (e.g. ``FixtureGroup("Location")``).
 
     Examples:
-        front = FixtureGroup()
-        back = FixtureGroup()
+        front = FixtureGroup("Location")
+        back = FixtureGroup("Location")
 
         FrontPar = FixtureType(DimmerAttr(), RGBAttr(), groups={front})
         FrontPar(1, 1)
@@ -46,7 +47,8 @@ class FixtureGroup:
         overlap = front & back      # intersection
     """
 
-    def __init__(self) -> None:
+    def __init__(self, group: str | None = None) -> None:
+        self.group = group
         self._fixtures: WeakSet[Fixture] = WeakSet()
         self._cached_list: list[Fixture] | None = None
 

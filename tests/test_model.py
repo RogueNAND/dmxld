@@ -81,6 +81,14 @@ class TestFixture:
 
 
 class TestFixtureGroup:
+    def test_group_label(self) -> None:
+        g = FixtureGroup("Location")
+        assert g.group == "Location"
+
+    def test_group_label_default_none(self) -> None:
+        g = FixtureGroup()
+        assert g.group is None
+
     def test_collects_fixtures(self) -> None:
         front = FixtureGroup()
         f1 = Fixture(DimmerOnly, 1, 1, groups={front})
