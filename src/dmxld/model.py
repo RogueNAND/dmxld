@@ -13,6 +13,8 @@ def _resolve_color_value(color_value: object, attr: Attribute) -> tuple[float, .
     """Resolve a color value, applying conversion unless Raw() wrapped."""
     if color_value is None:
         return attr.default_value
+    if isinstance(color_value, dict):
+        return attr.default_value
     if isinstance(color_value, Raw):
         return tuple(color_value)
     if hasattr(attr, "convert"):

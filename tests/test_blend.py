@@ -101,3 +101,30 @@ class TestScaleDeltas:
         scaled = scale_deltas(deltas, 0.5)
         assert scaled[f1]["dimmer"] == (BlendOp.SET, 0.5)
         assert scaled[f2]["dimmer"] == (BlendOp.SET, pytest.approx(0.4))
+
+
+class TestListValueHandling:
+    """Ensure list values (from JSON) are handled like tuples."""
+
+    def test_apply_op_list_set(self) -> None:
+        from dmxld.blend import _apply_op
+        result = _apply_op(None, BlendOp.SET, [1.0, 0.0, 0.0])
+        assert result == pytest.approx((1.0, 0.0, 0.0))
+
+    def test_apply_op_list_add_clamp(self) -> None:
+        from dmxld.blend import _apply_op
+        result = _apply_op((0.5, 0.5, 0.5), BlendOp.ADD_CLAMP, [0.3, 0.3, 0.3])
+        assert result == pytest.approx((0.8, 0.8, 0.8))
+
+    def test_scale_list_value(self) -> None:
+        delta = FixtureDelta()
+        delta["color"] = (BlendOp.SET, [1.0, 0.8, 0.6])
+        scaled = delta.scale(0.5)
+        assert scaled["color"][1] == pytest.approx((0.5, 0.4, 0.3))
+
+    def test_scale_into_list_value(self) -> None:
+        delta = FixtureDelta()
+        delta["color"] = (BlendOp.SET, [1.0, 0.8, 0.6])
+        out = FixtureDelta()
+        delta.scale_into(0.5, out)
+        assert out["color"][1] == pytest.approx((0.5, 0.4, 0.3))

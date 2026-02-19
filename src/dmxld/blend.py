@@ -30,7 +30,7 @@ class FixtureDelta(dict[str, tuple[BlendOp, Any]]):
         """Return new FixtureDelta with all values scaled by factor."""
         result = FixtureDelta()
         for name, (op, value) in self.items():
-            if isinstance(value, tuple):
+            if isinstance(value, (tuple, list)):
                 result[name] = (op, tuple(v * factor for v in value))
             elif isinstance(value, (int, float)):
                 result[name] = (op, value * factor)
@@ -42,7 +42,7 @@ class FixtureDelta(dict[str, tuple[BlendOp, Any]]):
         """Scale values into an existing FixtureDelta, reusing the object."""
         out.clear()
         for name, (op, value) in self.items():
-            if isinstance(value, tuple):
+            if isinstance(value, (tuple, list)):
                 out[name] = (op, tuple(v * factor for v in value))
             elif isinstance(value, (int, float)):
                 out[name] = (op, value * factor)
@@ -78,7 +78,7 @@ def _apply_op(current: Any, op: BlendOp, value: Any) -> Any:
     if isinstance(value, (int, float)):
         current_val = float(current) if current is not None else 0.0
         return _apply_scalar_op(current_val, op, float(value))
-    elif isinstance(value, tuple):
+    elif isinstance(value, (tuple, list)):
         if current is None:
             current = tuple(0.0 for _ in value)
         return _apply_tuple_op(current, op, value)

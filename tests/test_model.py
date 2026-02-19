@@ -284,3 +284,31 @@ class TestSegmentedFixtures:
         assert encoded[1] == 127  # R seg0
         assert encoded[5] == 0    # R seg1
         assert encoded[6] == 127  # G seg1
+
+
+class TestResolveColorValue:
+    def test_dict_color_returns_default(self) -> None:
+        """Dict color value (e.g. unresolved $var ref) returns default, not KeyError."""
+        from dmxld.model import _resolve_color_value
+        attr = RGBAttr()
+        result = _resolve_color_value({"$var": "missing"}, attr)
+        assert result == (0.0, 0.0, 0.0)
+
+    def test_none_color_returns_default(self) -> None:
+        from dmxld.model import _resolve_color_value
+        attr = RGBAttr()
+        result = _resolve_color_value(None, attr)
+        assert result == (0.0, 0.0, 0.0)
+
+    def test_tuple_color_converts(self) -> None:
+        from dmxld.model import _resolve_color_value
+        attr = RGBAttr()
+        result = _resolve_color_value((1.0, 0.0, 0.0), attr)
+        assert result == (1.0, 0.0, 0.0)
+
+    def test_list_color_converts(self) -> None:
+        """List color value (from JSON) is handled by convert()."""
+        from dmxld.model import _resolve_color_value
+        attr = RGBAttr()
+        result = _resolve_color_value([1.0, 0.0, 0.0], attr)
+        assert result == (1.0, 0.0, 0.0)
