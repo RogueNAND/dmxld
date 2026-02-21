@@ -5,6 +5,7 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any
 
+from dmxld.color import Color
 from dmxld.model import FixtureState
 
 
@@ -30,7 +31,9 @@ class FixtureDelta(dict[str, tuple[BlendOp, Any]]):
         """Return new FixtureDelta with all values scaled by factor."""
         result = FixtureDelta()
         for name, (op, value) in self.items():
-            if isinstance(value, (tuple, list)):
+            if isinstance(value, Color):
+                result[name] = (op, Color(*(v * factor for v in value), boost=value.boost))
+            elif isinstance(value, (tuple, list)):
                 result[name] = (op, tuple(v * factor for v in value))
             elif isinstance(value, (int, float)):
                 result[name] = (op, value * factor)
@@ -42,7 +45,9 @@ class FixtureDelta(dict[str, tuple[BlendOp, Any]]):
         """Scale values into an existing FixtureDelta, reusing the object."""
         out.clear()
         for name, (op, value) in self.items():
-            if isinstance(value, (tuple, list)):
+            if isinstance(value, Color):
+                out[name] = (op, Color(*(v * factor for v in value), boost=value.boost))
+            elif isinstance(value, (tuple, list)):
                 out[name] = (op, tuple(v * factor for v in value))
             elif isinstance(value, (int, float)):
                 out[name] = (op, value * factor)

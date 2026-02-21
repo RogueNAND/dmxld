@@ -63,7 +63,7 @@ class RGBAttr:
     def default_value(self) -> tuple[float, float, float]:
         return (0.0, 0.0, 0.0)
 
-    def convert(self, color: tuple[float, ...]) -> tuple[float, float, float]:
+    def convert(self, color: tuple[float, ...], boost: float = 0.0) -> tuple[float, float, float]:
         """Convert any color format to RGB."""
         # If it has 4+ channels (RGBW), convert to RGB
         if len(color) >= 4:
@@ -103,7 +103,7 @@ class RGBWAttr:
     def default_value(self) -> tuple[float, float, float, float]:
         return (0.0, 0.0, 0.0, 0.0)
 
-    def convert(self, color: tuple[float, ...]) -> tuple[float, float, float, float]:
+    def convert(self, color: tuple[float, ...], boost: float = 0.0) -> tuple[float, float, float, float]:
         """Convert any color format to RGBW."""
         # If it's already RGBW (4 channels), use as-is
         if len(color) >= 4:
@@ -113,7 +113,7 @@ class RGBWAttr:
         r = color[0] if len(color) > 0 else 0.0
         g = color[1] if len(color) > 1 else 0.0
         b = color[2] if len(color) > 2 else 0.0
-        return rgb_to_rgbw(r, g, b, self.strategy)
+        return rgb_to_rgbw(r, g, b, self.strategy, boost=boost)
 
     def encode(self, value: tuple[float, ...]) -> list[int]:
         return [_to_dmx(v) for v in value[:4]]
@@ -142,7 +142,7 @@ class RGBAAttr:
     def default_value(self) -> tuple[float, float, float, float]:
         return (0.0, 0.0, 0.0, 0.0)
 
-    def convert(self, color: tuple[float, ...]) -> tuple[float, float, float, float]:
+    def convert(self, color: tuple[float, ...], boost: float = 0.0) -> tuple[float, float, float, float]:
         """Convert any color format to RGBA."""
         # If it's already 4 channels, assume it's RGBA
         if len(color) >= 4:
@@ -152,7 +152,7 @@ class RGBAAttr:
         r = color[0] if len(color) > 0 else 0.0
         g = color[1] if len(color) > 1 else 0.0
         b = color[2] if len(color) > 2 else 0.0
-        return rgb_to_rgba(r, g, b)
+        return rgb_to_rgba(r, g, b, self.strategy, boost=boost)
 
     def encode(self, value: tuple[float, ...]) -> list[int]:
         return [_to_dmx(v) for v in value[:4]]
@@ -182,7 +182,7 @@ class RGBAWAttr:
         return (0.0, 0.0, 0.0, 0.0, 0.0)
 
     def convert(
-        self, color: tuple[float, ...]
+        self, color: tuple[float, ...], boost: float = 0.0
     ) -> tuple[float, float, float, float, float]:
         """Convert any color format to RGBAW."""
         # If it's already 5 channels, use as-is
@@ -195,9 +195,9 @@ class RGBAWAttr:
         b = color[2] if len(color) > 2 else 0.0
 
         # First extract white
-        r_w, g_w, b_w, w = rgb_to_rgbw(r, g, b, self.strategy)
+        r_w, g_w, b_w, w = rgb_to_rgbw(r, g, b, self.strategy, boost=boost)
         # Then extract amber from remaining RGB
-        r_out, g_out, b_out, a = rgb_to_rgba(r_w, g_w, b_w)
+        r_out, g_out, b_out, a = rgb_to_rgba(r_w, g_w, b_w, self.strategy, boost=boost)
 
         return (r_out, g_out, b_out, a, w)
 

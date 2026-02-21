@@ -105,7 +105,7 @@ def rgb_to_hsv(r: float, g: float, b: float) -> tuple[float, float, float]:
 
 
 def rgb_to_rgbw(
-    r: float, g: float, b: float, strategy: ColorStrategy | None = None
+    r: float, g: float, b: float, strategy: ColorStrategy | None = None, boost: float = 0.0
 ) -> tuple[float, float, float, float]:
     """Convert RGB to RGBW.
 
@@ -144,7 +144,8 @@ def rgb_to_rgbw(
 
     # Default "balanced" strategy: extract common white component
     w = min(r, g, b)
-    return (r - w, g - w, b - w, w)
+    keep = max(0.0, min(1.0, boost))
+    return (r - w * (1 - keep), g - w * (1 - keep), b - w * (1 - keep), w)
 
 
 def rgbw_to_rgb(
@@ -169,7 +170,9 @@ def rgbw_to_rgb(
 # -----------------------------------------------------------------------------
 
 
-def rgb_to_rgba(r: float, g: float, b: float) -> tuple[float, float, float, float]:
+def rgb_to_rgba(
+    r: float, g: float, b: float, strategy: ColorStrategy | None = None, boost: float = 0.0
+) -> tuple[float, float, float, float]:
     """Convert RGB to RGBA (with amber extraction).
 
     Amber is approximately (1.0, 0.75, 0.0) - a warm orange color.
@@ -178,10 +181,17 @@ def rgb_to_rgba(r: float, g: float, b: float) -> tuple[float, float, float, floa
         r: Red (0.0-1.0)
         g: Green (0.0-1.0)
         b: Blue (0.0-1.0)
+        strategy: Conversion strategy (uses global if None)
+        boost: Color boost (0.0-1.0)
 
     Returns:
         Tuple of (red, green, blue, amber), each 0.0-1.0
     """
+    if strategy is None:
+        strategy = get_color_strategy()
+    if strategy == "preserve_rgb":
+        return (r, g, b, 0.0)
+
     # Amber shouldn't be present in blue-ish colors
     if b > 0.5:
         return (r, g, b, 0.0)
@@ -196,8 +206,9 @@ def rgb_to_rgba(r: float, g: float, b: float) -> tuple[float, float, float, floa
     amber = min(amber, 1.0 - b)
     amber = max(0.0, amber)
 
-    r_out = max(0.0, r - amber)
-    g_out = max(0.0, g - amber * 0.75)
+    keep = max(0.0, min(1.0, boost))
+    r_out = max(0.0, r - amber * (1 - keep))
+    g_out = max(0.0, g - amber * 0.75 * (1 - keep))
 
     return (r_out, g_out, b, amber)
 
@@ -237,20 +248,23 @@ class Color(tuple[float, ...]):
         color.hsv                       # Get HSV tuple
     """
 
-    def __new__(cls, *values: float) -> Color:
-        return super().__new__(cls, values)
+    def __new__(cls, *values: float, boost: float = 0.0) -> Color:
+        instance = super().__new__(cls, values)
+        instance.boost = boost
+        return instance
 
     @classmethod
-    def from_hsv(cls, h: float, s: float, v: float) -> Color:
+    def from_hsv(cls, h: float, s: float, v: float, boost: float = 0.0) -> Color:
         """Create a Color from HSV values.
 
         Args:
             h: Hue (0.0-1.0, wraps around)
             s: Saturation (0.0-1.0)
             v: Value/brightness (0.0-1.0)
+            boost: Color boost (0.0-1.0)
         """
         r, g, b = hsv_to_rgb(h, s, v)
-        return cls(r, g, b)
+        return cls(r, g, b, boost=boost)
 
     @property
     def r(self) -> float:
@@ -284,6 +298,8 @@ class Color(tuple[float, ...]):
 
     def __repr__(self) -> str:
         values = ", ".join(f"{v}" for v in self)
+        if self.boost:
+            return f"Color({values}, boost={self.boost})"
         return f"Color({values})"
 
 
@@ -292,9 +308,9 @@ class Color(tuple[float, ...]):
 # -----------------------------------------------------------------------------
 
 
-def rgb(r: float, g: float, b: float) -> Color:
+def rgb(r: float, g: float, b: float, boost: float = 0.0) -> Color:
     """Create an RGB color."""
-    return Color(r, g, b)
+    return Color(r, g, b, boost=boost)
 
 
 # -----------------------------------------------------------------------------

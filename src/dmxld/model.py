@@ -18,7 +18,8 @@ def _resolve_color_value(color_value: object, attr: Attribute) -> tuple[float, .
     if isinstance(color_value, Raw):
         return tuple(color_value)
     if hasattr(attr, "convert"):
-        return attr.convert(color_value)
+        boost = getattr(color_value, 'boost', 0.0)
+        return attr.convert(color_value, boost=boost)
     return color_value
 
 

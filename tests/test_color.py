@@ -170,3 +170,67 @@ class TestUnifiedColorKey:
         state = FixtureState(dimmer=1.0, color=Color.from_hsv(0.0, 1.0, 1.0))
         encoded = ft.encode(state)
         assert (encoded[1], encoded[2], encoded[3]) == (255, 0, 0)
+
+
+class TestColorBoost:
+    """Color boost feature for preserving RGB in white extraction."""
+
+    def test_color_boost_default(self) -> None:
+        c = Color(1.0, 0.5, 0.0)
+        assert c.boost == 0.0
+
+    def test_color_boost_kwarg(self) -> None:
+        c = Color(1.0, 0.5, 0.0, boost=0.7)
+        assert c.boost == 0.7
+        assert len(c) == 3
+        # Test tuple unpacking works
+        r, g, b = c
+        assert (r, g, b) == (1.0, 0.5, 0.0)
+
+    def test_color_from_hsv_boost(self) -> None:
+        c = Color.from_hsv(0.0, 1.0, 1.0, boost=0.5)
+        assert c.boost == 0.5
+        assert c.rgb == pytest.approx((1.0, 0.0, 0.0))
+
+    def test_color_repr_with_boost(self) -> None:
+        c = Color(1.0, 0.0, 0.0, boost=0.5)
+        assert "boost=0.5" in repr(c)
+
+    def test_color_repr_without_boost(self) -> None:
+        c = Color(1.0, 0.0, 0.0)
+        assert "boost" not in repr(c)
+
+    def test_rgb_to_rgbw_boost_zero_matches_default(self) -> None:
+        # boost=0.0 should match default behavior (backward compatibility)
+        default = rgb_to_rgbw(1.0, 0.5, 0.5)
+        with_boost = rgb_to_rgbw(1.0, 0.5, 0.5, boost=0.0)
+        assert default == pytest.approx(with_boost)
+
+    def test_rgb_to_rgbw_boost_one_keeps_rgb(self) -> None:
+        # boost=1.0 should preserve RGB, still extract white
+        r, g, b, w = rgb_to_rgbw(1.0, 0.5, 0.5, boost=1.0)
+        assert w == pytest.approx(0.5)
+        # RGB should be unchanged
+        assert r == pytest.approx(1.0)
+        assert g == pytest.approx(0.5)
+        assert b == pytest.approx(0.5)
+
+    def test_rgb_to_rgba_boost_zero_matches_default(self) -> None:
+        # boost=0.0 should match default behavior (backward compatibility)
+        default = rgb_to_rgba(1.0, 0.5, 0.0)
+        with_boost = rgb_to_rgba(1.0, 0.5, 0.0, boost=0.0)
+        assert default == pytest.approx(with_boost)
+
+    def test_rgb_to_rgba_boost_one_keeps_rgb(self) -> None:
+        # boost=1.0 should preserve RGB channels
+        r, g, b, a = rgb_to_rgba(1.0, 0.5, 0.0, boost=1.0)
+        # RGB should be unchanged
+        assert r == pytest.approx(1.0)
+        assert g == pytest.approx(0.5)
+        # Amber should still be extracted
+        assert a > 0.0
+
+    def test_rgb_to_rgba_preserve_rgb_strategy(self) -> None:
+        # preserve_rgb strategy should return no amber
+        r, g, b, a = rgb_to_rgba(1.0, 0.5, 0.0, strategy="preserve_rgb")
+        assert (r, g, b, a) == pytest.approx((1.0, 0.5, 0.0, 0.0))

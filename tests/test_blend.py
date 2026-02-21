@@ -3,6 +3,7 @@
 import pytest
 
 from dmxld.blend import BlendOp, FixtureDelta, apply_delta, merge_deltas
+from dmxld.color import Color
 from dmxld.model import FixtureState
 
 
@@ -128,3 +129,47 @@ class TestListValueHandling:
         out = FixtureDelta()
         delta.scale_into(0.5, out)
         assert out["color"][1] == pytest.approx((0.5, 0.4, 0.3))
+
+
+class TestColorBoostPreservation:
+    """Test that Color boost is preserved during scale operations."""
+
+    def test_scale_preserves_color_type(self) -> None:
+        # Create FixtureDelta with Color value
+        delta = FixtureDelta(color=(BlendOp.SET, Color(1.0, 0.5, 0.0, boost=0.8)))
+
+        # Scale it
+        scaled = delta.scale(0.5)
+
+        # Result should be a Color instance with preserved boost
+        result_color = scaled["color"][1]
+        assert isinstance(result_color, Color)
+        assert result_color.boost == 0.8
+        assert result_color == pytest.approx((0.5, 0.25, 0.0))
+
+    def test_scale_into_preserves_color_type(self) -> None:
+        # Create FixtureDelta with Color value
+        delta = FixtureDelta(color=(BlendOp.SET, Color(1.0, 0.5, 0.0, boost=0.8)))
+
+        # Scale into existing delta
+        out = FixtureDelta()
+        delta.scale_into(0.5, out)
+
+        # Result should be a Color instance with preserved boost
+        result_color = out["color"][1]
+        assert isinstance(result_color, Color)
+        assert result_color.boost == 0.8
+        assert result_color == pytest.approx((0.5, 0.25, 0.0))
+
+    def test_scale_plain_tuple_unchanged(self) -> None:
+        # Verify plain tuples (not Color) still work as before
+        delta = FixtureDelta(color=(BlendOp.SET, (1.0, 0.5, 0.0)))
+
+        # Scale it
+        scaled = delta.scale(0.5)
+
+        # Result should be plain tuple, not Color
+        result = scaled["color"][1]
+        assert not isinstance(result, Color)
+        assert isinstance(result, tuple)
+        assert result == pytest.approx((0.5, 0.25, 0.0))
