@@ -75,7 +75,11 @@ def _apply_tuple_op(
     op: BlendOp,
     value: tuple[float, ...],
 ) -> tuple[float, ...]:
-    return tuple(_apply_scalar_op(c, op, v) for c, v in zip(current, value))
+    result = tuple(_apply_scalar_op(c, op, v) for c, v in zip(current, value))
+    boost = max(getattr(current, 'boost', 0.0), getattr(value, 'boost', 0.0))
+    if boost > 0:
+        return Color(*result, boost=boost)
+    return result
 
 
 def _apply_op(current: Any, op: BlendOp, value: Any) -> Any:

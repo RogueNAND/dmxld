@@ -173,3 +173,27 @@ class TestColorBoostPreservation:
         assert not isinstance(result, Color)
         assert isinstance(result, tuple)
         assert result == pytest.approx((0.5, 0.25, 0.0))
+
+    def test_boost_preserved_through_merge_deltas(self) -> None:
+        """Color.boost survives merge_deltas (the engine apply path)."""
+        delta = FixtureDelta(color=(BlendOp.SET, Color(1.0, 0.0, 0.0, boost=0.8)))
+        state = merge_deltas([delta])
+        assert isinstance(state["color"], Color)
+        assert state["color"].boost == 0.8
+
+    def test_boost_preserved_through_apply_delta(self) -> None:
+        """Color.boost survives apply_delta with existing state."""
+        state = FixtureState(color=(0.5, 0.5, 0.5))
+        delta = FixtureDelta(color=(BlendOp.SET, Color(1.0, 0.0, 0.0, boost=0.6)))
+        result = apply_delta(state, delta)
+        assert isinstance(result["color"], Color)
+        assert result["color"].boost == 0.6
+
+    def test_boost_max_on_add_clamp(self) -> None:
+        """ADD_CLAMP takes max boost from both operands."""
+        state = FixtureState(color=Color(0.5, 0.0, 0.0, boost=0.3))
+        delta = FixtureDelta(color=(BlendOp.ADD_CLAMP, Color(0.0, 0.5, 0.0, boost=0.7)))
+        result = apply_delta(state, delta)
+        assert isinstance(result["color"], Color)
+        assert result["color"].boost == 0.7
+        assert result["color"] == pytest.approx((0.5, 0.5, 0.0))
