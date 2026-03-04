@@ -15,6 +15,8 @@ from dmxld.blend import (
     merge_deltas,
     scale_deltas,
     scale_deltas_into,
+    compose_add,
+    compose_override,
 )
 from dmxld.clips import Clip, Scene, EffectClip, fade
 from dmxld.engine import DMXEngine, Protocol
@@ -51,6 +53,8 @@ __all__ = [
     "merge_deltas",
     "scale_deltas",
     "scale_deltas_into",
+    "compose_add",
+    "compose_override",
     # Clips
     "Clip",
     "Scene",

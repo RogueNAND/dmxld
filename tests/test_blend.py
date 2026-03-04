@@ -2,7 +2,7 @@
 
 import pytest
 
-from dmxld.blend import BlendOp, FixtureDelta, apply_delta, merge_deltas
+from dmxld.blend import BlendOp, FixtureDelta, apply_delta, merge_deltas, compose_add, compose_override
 from dmxld.color import Color
 from dmxld.model import FixtureState
 
@@ -197,3 +197,64 @@ class TestColorBoostPreservation:
         assert isinstance(result["color"], Color)
         assert result["color"].boost == 0.7
         assert result["color"] == pytest.approx((0.5, 0.5, 0.0))
+
+
+class TestComposeAdd:
+    def test_different_attributes_merged(self) -> None:
+        d1 = FixtureDelta(dimmer=(BlendOp.SET, 0.5))
+        d2 = FixtureDelta(color=(BlendOp.SET, (1.0, 0.0, 0.0)))
+        result = compose_add([d1, d2])
+        assert result["dimmer"] == (BlendOp.SET, 0.5)
+        assert result["color"] == (BlendOp.SET, (1.0, 0.0, 0.0))
+
+    def test_same_numeric_attribute_summed(self) -> None:
+        d1 = FixtureDelta(strobe=(BlendOp.SET, 0.3))
+        d2 = FixtureDelta(strobe=(BlendOp.SET, 0.4))
+        result = compose_add([d1, d2])
+        assert result["strobe"] == (BlendOp.SET, pytest.approx(0.7))
+
+    def test_dimmer_uses_htp(self) -> None:
+        d1 = FixtureDelta(dimmer=(BlendOp.SET, 0.8))
+        d2 = FixtureDelta(dimmer=(BlendOp.SET, 0.5))
+        result = compose_add([d1, d2])
+        assert result["dimmer"] == (BlendOp.SET, 0.8)
+
+    def test_tuple_attributes_summed_elementwise(self) -> None:
+        d1 = FixtureDelta(color=(BlendOp.SET, (0.5, 0.0, 0.0)))
+        d2 = FixtureDelta(color=(BlendOp.SET, (0.0, 0.3, 0.2)))
+        result = compose_add([d1, d2])
+        assert result["color"][1] == pytest.approx((0.5, 0.3, 0.2))
+
+    def test_color_boost_preserved(self) -> None:
+        d1 = FixtureDelta(color=(BlendOp.SET, Color(0.5, 0.0, 0.0, boost=0.3)))
+        d2 = FixtureDelta(color=(BlendOp.SET, Color(0.0, 0.5, 0.0, boost=0.7)))
+        result = compose_add([d1, d2])
+        val = result["color"][1]
+        assert isinstance(val, Color)
+        assert val.boost == 0.7
+        assert val == pytest.approx((0.5, 0.5, 0.0))
+
+    def test_single_delta_returned_as_is(self) -> None:
+        d = FixtureDelta(dimmer=(BlendOp.SET, 0.5))
+        result = compose_add([d])
+        assert result is d
+
+
+class TestComposeOverride:
+    def test_later_overwrites_earlier(self) -> None:
+        d1 = FixtureDelta(dimmer=(BlendOp.SET, 0.5))
+        d2 = FixtureDelta(dimmer=(BlendOp.SET, 0.8))
+        result = compose_override([d1, d2])
+        assert result["dimmer"] == (BlendOp.SET, 0.8)
+
+    def test_non_overlapping_merged(self) -> None:
+        d1 = FixtureDelta(dimmer=(BlendOp.SET, 0.5))
+        d2 = FixtureDelta(color=(BlendOp.SET, (1.0, 0.0, 0.0)))
+        result = compose_override([d1, d2])
+        assert result["dimmer"] == (BlendOp.SET, 0.5)
+        assert result["color"] == (BlendOp.SET, (1.0, 0.0, 0.0))
+
+    def test_single_delta_returned_as_is(self) -> None:
+        d = FixtureDelta(dimmer=(BlendOp.SET, 0.5))
+        result = compose_override([d])
+        assert result is d

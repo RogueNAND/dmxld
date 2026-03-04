@@ -128,3 +128,45 @@ def scale_deltas_into(deltas: dict, factor: float, out: dict) -> dict:
             out[target] = FixtureDelta()
         delta.scale_into(factor, out[target])
     return out
+
+
+def compose_add(deltas: list[FixtureDelta]) -> FixtureDelta:
+    """Additive compose: sum pre-scaled values, HTP for dimmer.
+
+    Merges overlapping FixtureDeltas by summing numeric values and
+    element-wise summing tuples. Dimmer uses HTP (max) to prevent
+    intensity spikes. Color boost metadata uses max of both values.
+    """
+    if len(deltas) == 1:
+        return deltas[0]
+    result = FixtureDelta()
+    for delta in deltas:
+        for name, (op, value) in delta.items():
+            if name in result:
+                _, existing = result[name]
+                if isinstance(value, (tuple, list)):
+                    merged = tuple(a + b for a, b in zip(existing, value))
+                    boost = max(getattr(existing, 'boost', 0.0), getattr(value, 'boost', 0.0))
+                    if boost > 0:
+                        result[name] = (op, Color(*merged, boost=boost))
+                    else:
+                        result[name] = (op, merged)
+                elif isinstance(value, (int, float)):
+                    if name == "dimmer":
+                        result[name] = (op, max(existing, value))
+                    else:
+                        result[name] = (op, existing + value)
+            else:
+                result[name] = (op, value)
+    return result
+
+
+def compose_override(deltas: list[FixtureDelta]) -> FixtureDelta:
+    """Last-wins compose: later deltas override earlier ones per attribute."""
+    if len(deltas) == 1:
+        return deltas[0]
+    result = FixtureDelta()
+    for delta in deltas:
+        for name, value in delta.items():
+            result[name] = value
+    return result
