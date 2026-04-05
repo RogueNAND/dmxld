@@ -131,44 +131,34 @@ class TestListValueHandling:
         assert out["color"][1] == pytest.approx((0.5, 0.4, 0.3))
 
 
-class TestColorBoostPreservation:
-    """Test that Color boost is preserved during scale operations."""
+class TestColorBoostScaling:
+    """Test that Color boost scales proportionally during operations."""
 
-    def test_scale_preserves_color_type(self) -> None:
-        # Create FixtureDelta with Color value
+    def test_scale_scales_boost(self) -> None:
+        # Boost should scale with the factor, not be preserved
         delta = FixtureDelta(color=(BlendOp.SET, Color(1.0, 0.5, 0.0, boost=0.8)))
-
-        # Scale it
         scaled = delta.scale(0.5)
 
-        # Result should be a Color instance with preserved boost
         result_color = scaled["color"][1]
         assert isinstance(result_color, Color)
-        assert result_color.boost == 0.8
+        assert result_color.boost == pytest.approx(0.4)
         assert result_color == pytest.approx((0.5, 0.25, 0.0))
 
-    def test_scale_into_preserves_color_type(self) -> None:
-        # Create FixtureDelta with Color value
+    def test_scale_into_scales_boost(self) -> None:
         delta = FixtureDelta(color=(BlendOp.SET, Color(1.0, 0.5, 0.0, boost=0.8)))
-
-        # Scale into existing delta
         out = FixtureDelta()
         delta.scale_into(0.5, out)
 
-        # Result should be a Color instance with preserved boost
         result_color = out["color"][1]
         assert isinstance(result_color, Color)
-        assert result_color.boost == 0.8
+        assert result_color.boost == pytest.approx(0.4)
         assert result_color == pytest.approx((0.5, 0.25, 0.0))
 
     def test_scale_plain_tuple_unchanged(self) -> None:
         # Verify plain tuples (not Color) still work as before
         delta = FixtureDelta(color=(BlendOp.SET, (1.0, 0.5, 0.0)))
-
-        # Scale it
         scaled = delta.scale(0.5)
 
-        # Result should be plain tuple, not Color
         result = scaled["color"][1]
         assert not isinstance(result, Color)
         assert isinstance(result, tuple)
@@ -182,21 +172,50 @@ class TestColorBoostPreservation:
         assert state["color"].boost == 0.8
 
     def test_boost_preserved_through_apply_delta(self) -> None:
-        """Color.boost survives apply_delta with existing state."""
+        """Color.boost survives apply_delta with SET op."""
         state = FixtureState(color=(0.5, 0.5, 0.5))
         delta = FixtureDelta(color=(BlendOp.SET, Color(1.0, 0.0, 0.0, boost=0.6)))
         result = apply_delta(state, delta)
         assert isinstance(result["color"], Color)
         assert result["color"].boost == 0.6
 
-    def test_boost_max_on_add_clamp(self) -> None:
-        """ADD_CLAMP takes max boost from both operands."""
+    def test_boost_summed_on_add_clamp(self) -> None:
+        """ADD_CLAMP sums boost from both operands (clamped to 1.0)."""
         state = FixtureState(color=Color(0.5, 0.0, 0.0, boost=0.3))
         delta = FixtureDelta(color=(BlendOp.ADD_CLAMP, Color(0.0, 0.5, 0.0, boost=0.7)))
         result = apply_delta(state, delta)
         assert isinstance(result["color"], Color)
-        assert result["color"].boost == 0.7
+        assert result["color"].boost == pytest.approx(1.0)
         assert result["color"] == pytest.approx((0.5, 0.5, 0.0))
+
+    def test_boost_sum_clamped_to_one(self) -> None:
+        """Boost sum is clamped to 1.0."""
+        state = FixtureState(color=Color(0.5, 0.0, 0.0, boost=0.8))
+        delta = FixtureDelta(color=(BlendOp.ADD_CLAMP, Color(0.0, 0.5, 0.0, boost=0.9)))
+        result = apply_delta(state, delta)
+        assert result["color"].boost == 1.0
+
+    def test_set_uses_incoming_boost_only(self) -> None:
+        """SET op uses the incoming value's boost, ignoring current."""
+        state = FixtureState(color=Color(0.5, 0.0, 0.0, boost=0.9))
+        delta = FixtureDelta(color=(BlendOp.SET, Color(1.0, 0.0, 0.0, boost=0.2)))
+        result = apply_delta(state, delta)
+        assert result["color"].boost == 0.2
+
+    def test_near_zero_fade_produces_near_zero_boost(self) -> None:
+        """A clip at near-zero fade contributes negligible boost."""
+        delta = FixtureDelta(color=(BlendOp.SET, Color(1.0, 0.0, 0.0, boost=0.5)))
+        scaled = delta.scale(0.01)  # 1% fade
+        result = scaled["color"][1]
+        assert result.boost == pytest.approx(0.005)
+
+    def test_zero_boost_stays_zero_through_scale(self) -> None:
+        """Colors without boost remain plain tuples after scale."""
+        delta = FixtureDelta(color=(BlendOp.SET, Color(1.0, 0.0, 0.0, boost=0.0)))
+        scaled = delta.scale(0.5)
+        result = scaled["color"][1]
+        # boost=0 * 0.5 = 0, so Color is created but boost stays 0
+        assert result.boost == 0.0
 
 
 class TestComposeAdd:
@@ -225,14 +244,35 @@ class TestComposeAdd:
         result = compose_add([d1, d2])
         assert result["color"][1] == pytest.approx((0.5, 0.3, 0.2))
 
-    def test_color_boost_preserved(self) -> None:
+    def test_color_boost_summed(self) -> None:
+        """compose_add sums boost values (clamped to 1.0) for smooth transitions."""
         d1 = FixtureDelta(color=(BlendOp.SET, Color(0.5, 0.0, 0.0, boost=0.3)))
         d2 = FixtureDelta(color=(BlendOp.SET, Color(0.0, 0.5, 0.0, boost=0.7)))
         result = compose_add([d1, d2])
         val = result["color"][1]
         assert isinstance(val, Color)
-        assert val.boost == 0.7
+        assert val.boost == pytest.approx(1.0)
         assert val == pytest.approx((0.5, 0.5, 0.0))
+
+    def test_color_boost_smooth_fadein(self) -> None:
+        """Near-zero contribution adds near-zero boost (no brightness jump)."""
+        # Clip A at full fade: boost=0.0
+        d1 = FixtureDelta(color=(BlendOp.SET, Color(1.0, 1.0, 1.0, boost=0.0)))
+        # Clip B at 1% fade with boost=0.5: after scale, boost should be ~0.005
+        d2 = FixtureDelta(color=(BlendOp.SET, Color(0.01, 0.0, 0.0, boost=0.005)))
+        result = compose_add([d1, d2])
+        val = result["color"][1]
+        assert isinstance(val, Color)
+        # Boost should be ~0.005, not 0.5 (the old max() behavior)
+        assert val.boost == pytest.approx(0.005)
+
+    def test_color_boost_sum_clamped(self) -> None:
+        """Boost sum clamps to 1.0."""
+        d1 = FixtureDelta(color=(BlendOp.SET, Color(0.5, 0.0, 0.0, boost=0.8)))
+        d2 = FixtureDelta(color=(BlendOp.SET, Color(0.0, 0.5, 0.0, boost=0.6)))
+        result = compose_add([d1, d2])
+        val = result["color"][1]
+        assert val.boost == 1.0
 
     def test_single_delta_returned_as_is(self) -> None:
         d = FixtureDelta(dimmer=(BlendOp.SET, 0.5))

@@ -32,7 +32,7 @@ class FixtureDelta(dict[str, tuple[BlendOp, Any]]):
         result = FixtureDelta()
         for name, (op, value) in self.items():
             if isinstance(value, Color):
-                result[name] = (op, Color(*(v * factor for v in value), boost=value.boost))
+                result[name] = (op, Color(*(v * factor for v in value), boost=value.boost * factor))
             elif isinstance(value, (tuple, list)):
                 result[name] = (op, tuple(v * factor for v in value))
             elif isinstance(value, (int, float)):
@@ -46,7 +46,7 @@ class FixtureDelta(dict[str, tuple[BlendOp, Any]]):
         out.clear()
         for name, (op, value) in self.items():
             if isinstance(value, Color):
-                out[name] = (op, Color(*(v * factor for v in value), boost=value.boost))
+                out[name] = (op, Color(*(v * factor for v in value), boost=value.boost * factor))
             elif isinstance(value, (tuple, list)):
                 out[name] = (op, tuple(v * factor for v in value))
             elif isinstance(value, (int, float)):
@@ -76,7 +76,12 @@ def _apply_tuple_op(
     value: tuple[float, ...],
 ) -> tuple[float, ...]:
     result = tuple(_apply_scalar_op(c, op, v) for c, v in zip(current, value))
-    boost = max(getattr(current, 'boost', 0.0), getattr(value, 'boost', 0.0))
+    cur_boost = getattr(current, 'boost', 0.0)
+    val_boost = getattr(value, 'boost', 0.0)
+    if op == BlendOp.SET:
+        boost = val_boost
+    else:
+        boost = min(cur_boost + val_boost, 1.0)
     if boost > 0:
         return Color(*result, boost=boost)
     return result
@@ -135,7 +140,8 @@ def compose_add(deltas: list[FixtureDelta]) -> FixtureDelta:
 
     Merges overlapping FixtureDeltas by summing numeric values and
     element-wise summing tuples. Dimmer uses HTP (max) to prevent
-    intensity spikes. Color boost metadata uses max of both values.
+    intensity spikes. Color boost sums proportionally (clamped to 1.0)
+    since values are pre-scaled by fade envelope.
     """
     if len(deltas) == 1:
         return deltas[0]
@@ -146,7 +152,7 @@ def compose_add(deltas: list[FixtureDelta]) -> FixtureDelta:
                 _, existing = result[name]
                 if isinstance(value, (tuple, list)):
                     merged = tuple(a + b for a, b in zip(existing, value))
-                    boost = max(getattr(existing, 'boost', 0.0), getattr(value, 'boost', 0.0))
+                    boost = min(getattr(existing, 'boost', 0.0) + getattr(value, 'boost', 0.0), 1.0)
                     if boost > 0:
                         result[name] = (op, Color(*merged, boost=boost))
                     else:
